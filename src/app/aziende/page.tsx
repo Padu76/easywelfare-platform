@@ -185,7 +185,7 @@ export default function AziendePage() {
                   {Object.entries(examples).map(([key, example]) => (
                     <button
                       key={key}
-                      onClick={() => handleExampleChange(key)}
+                      onClick={() => handleExampleChange(key as keyof typeof examples)}
                       className={`p-3 rounded-lg text-sm transition-all ${
                         selectedExample === key
                           ? 'bg-blue-600 text-white'
