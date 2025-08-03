@@ -65,6 +65,13 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* CTA */}
+        <div className="text-center mt-12">
+          <Link href="/demo" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 inline-block">
+            Inizia Ora
+          </Link>
+        </div>
       </main>
     </div>
   )
