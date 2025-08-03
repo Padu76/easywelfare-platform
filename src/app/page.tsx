@@ -7,14 +7,6 @@ export default function LandingPage() {
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
 
-  useEffect(() => {
-    setIsVisible(true)
-    const interval = setInterval(() => {
-      setCurrentTestimonial(prev => (prev + 1) % testimonials.length)
-    }, 5000)
-    return () => clearInterval(interval)
-  }, [])
-
   const testimonials = [
     {
       quote: "EasyWelfare ha rivoluzionato il nostro approccio al welfare aziendale. I dipendenti sono più felici e noi risparmiamo il 32% sui costi.",
@@ -38,6 +30,14 @@ export default function LandingPage() {
       rating: 5
     }
   ]
+
+  useEffect(() => {
+    setIsVisible(true)
+    const interval = setInterval(() => {
+      setCurrentTestimonial(prev => (prev + 1) % testimonials.length)
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark bg-gray-900' : 'bg-white'}`}>
