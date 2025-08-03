@@ -20,7 +20,7 @@ export default function AziendePage() {
     grande: { employees: 200, monthlyBudget: 45, label: 'Grande Azienda (200 dipendenti)' }
   }
 
-  const handleExampleChange = (example) => {
+  const handleExampleChange = (example: keyof typeof examples) => {
     setSelectedExample(example)
     setEmployees(examples[example].employees)
     setMonthlyBudget(examples[example].monthlyBudget)
