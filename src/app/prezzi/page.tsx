@@ -656,7 +656,7 @@ export default function PrezziPage() {
           </div>
 
           <div className="space-y-6">
-            {faqData[activeTab].map((faq, idx) => (
+            {faqData[activeTab as keyof typeof faqData].map((faq, idx) => (
               <div key={idx} className={`p-6 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-white'} shadow-lg`}>
                 <h3 className={`text-lg font-semibold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                   {faq.question}
