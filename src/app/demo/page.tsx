@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import Link from 'next/link'
 
 export default function DemoPage() {
   const [userType, setUserType] = useState<'company' | 'employee' | 'partner'>('company')
