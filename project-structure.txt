@@ -1,0 +1,111 @@
+easywelfare-platform/
+├── README.md
+├── next.config.js
+├── package.json
+├── tsconfig.json
+├── tailwind.config.js
+├── postcss.config.js
+├── .env.local.example
+├── .gitignore
+├── public/
+│   ├── logo.svg
+│   ├── qr-scanner.svg
+│   └── favicon.ico
+├── docs/
+│   ├── API.md
+│   ├── DEPLOYMENT.md
+│   └── BUSINESS_LOGIC.md
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   ├── globals.css
+│   │   ├── demo/
+│   │   │   └── page.tsx
+│   │   └── dashboard/
+│   │       ├── layout.tsx
+│   │       ├── company/
+│   │       │   ├── page.tsx
+│   │       │   ├── credits/
+│   │       │   │   └── page.tsx
+│   │       │   ├── employees/
+│   │       │   │   └── page.tsx
+│   │       │   └── reports/
+│   │       │       └── page.tsx
+│   │       ├── employee/
+│   │       │   ├── page.tsx
+│   │       │   ├── catalog/
+│   │       │   │   └── page.tsx
+│   │       │   ├── history/
+│   │       │   │   └── page.tsx
+│   │       │   └── qr/
+│   │       │       └── page.tsx
+│   │       └── partner/
+│   │           ├── page.tsx
+│   │           ├── services/
+│   │           │   └── page.tsx
+│   │           ├── transactions/
+│   │           │   └── page.tsx
+│   │           └── vouchers/
+│   │               └── page.tsx
+│   ├── components/
+│   │   ├── ui/
+│   │   │   ├── button.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── input.tsx
+│   │   │   └── badge.tsx
+│   │   ├── dashboard/
+│   │   │   ├── CreditsDistributionSystem.tsx
+│   │   │   ├── PartnerVoucherManagement.tsx
+│   │   │   ├── ServiceBookingSystem.tsx
+│   │   │   ├── QRGenerator.tsx
+│   │   │   └── QRScanner.tsx
+│   │   └── layout/
+│   │       ├── Header.tsx
+│   │       ├── Sidebar.tsx
+│   │       └── Navigation.tsx
+│   ├── lib/
+│   │   ├── firebase/
+│   │   │   ├── config.ts
+│   │   │   ├── firestore.ts
+│   │   │   └── auth.ts
+│   │   ├── stripe/
+│   │   │   └── config.ts
+│   │   ├── utils.ts
+│   │   └── constants.ts
+│   ├── types/
+│   │   ├── index.ts
+│   │   ├── company.ts
+│   │   ├── employee.ts
+│   │   ├── partner.ts
+│   │   └── transaction.ts
+│   └── api/
+│       ├── points/
+│       │   ├── assign.ts
+│       │   └── redeem.ts
+│       ├── partners/
+│       │   ├── register.ts
+│       │   └── services.ts
+│       ├── transactions/
+│       │   └── process.ts
+│       ├── payments/
+│       │   └── stripe.ts
+│       └── reports/
+│           └── generate.ts
+
+PLACEHOLDER FILES INCLUSI:
+
+src/app/page.tsx - Homepage con demo del prodotto
+src/app/demo/page.tsx - Demo interattiva senza login
+src/app/dashboard/company/page.tsx - Dashboard principale azienda
+src/app/dashboard/employee/page.tsx - Dashboard dipendente
+src/app/dashboard/partner/page.tsx - Dashboard partner
+src/components/dashboard/CreditsDistributionSystem.tsx - Sistema distribuzione punti
+src/components/dashboard/ServiceBookingSystem.tsx - Prenotazione servizi
+src/components/dashboard/QRGenerator.tsx - Generazione QR codes
+src/types/index.ts - Definizioni TypeScript per tutte le entità
+src/lib/firebase/config.ts - Configurazione Firebase
+src/api/points/assign.ts - API assegnazione punti
+src/api/transactions/process.ts - API processamento transazioni
+
+LOGICA AUTH RINVIATA A DOPO IL TESTING CORE
