@@ -227,7 +227,7 @@ export default function PrezziPage() {
       },
       {
         question: 'Posso diventare Partner Premium subito?',
-        answer: 'Per il tier Premium devi raggiungere €500/mese di transazioni. Una volta raggiunto, puoi richiedere l\'upgrade e attiveremo i benefici entro 48 ore.'
+        answer: 'Per il tier Premium devi raggiungere €500/mese di transazioni. Una volta raggiunto, puoi richiedere l&apos;upgrade e attiveremo i benefici entro 48 ore.'
       }
     ]
   }
