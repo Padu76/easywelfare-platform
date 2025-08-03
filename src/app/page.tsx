@@ -2,34 +2,35 @@
 
 import { useState, useEffect } from 'react'
 
+// DEFINISCO TESTIMONIALS PRIMA DEL COMPONENTE per evitare errori ESLint
+const testimonials = [
+  {
+    quote: "EasyWelfare ha rivoluzionato il nostro approccio al welfare aziendale. I dipendenti sono più felici e noi risparmiamo il 32% sui costi.",
+    author: "Marco Bianchi",
+    role: "HR Director",
+    company: "TechCorp Verona",
+    rating: 5
+  },
+  {
+    quote: "Finalmente posso gestire i miei servizi wellness senza costi fissi. Guadagno di più e i clienti sono soddisfatti.",
+    author: "Sara Rossi",
+    role: "Proprietaria",
+    company: "Wellness Center",
+    rating: 5
+  },
+  {
+    quote: "Utilizzo tutti i miei punti welfare ogni mese. Personal trainer, massaggi, nutrizionista... tutto incluso!",
+    author: "Luca Verdi",
+    role: "Dipendente",
+    company: "Innovation SRL",
+    rating: 5
+  }
+]
+
 export default function LandingPage() {
   const [darkMode, setDarkMode] = useState(false)
   const [currentTestimonial, setCurrentTestimonial] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
-
-  const testimonials = [
-    {
-      quote: "EasyWelfare ha rivoluzionato il nostro approccio al welfare aziendale. I dipendenti sono più felici e noi risparmiamo il 32% sui costi.",
-      author: "Marco Bianchi",
-      role: "HR Director",
-      company: "TechCorp Verona",
-      rating: 5
-    },
-    {
-      quote: "Finalmente posso gestire i miei servizi wellness senza costi fissi. Guadagno di più e i clienti sono soddisfatti.",
-      author: "Sara Rossi",
-      role: "Proprietaria",
-      company: "Wellness Center",
-      rating: 5
-    },
-    {
-      quote: "Utilizzo tutti i miei punti welfare ogni mese. Personal trainer, massaggi, nutrizionista... tutto incluso!",
-      author: "Luca Verdi",
-      role: "Dipendente",
-      company: "Innovation SRL",
-      rating: 5
-    }
-  ]
 
   useEffect(() => {
     setIsVisible(true)
@@ -37,7 +38,7 @@ export default function LandingPage() {
       setCurrentTestimonial(prev => (prev + 1) % testimonials.length)
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, []) // Dependency array vuoto - testimonials è constante
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark bg-gray-900' : 'bg-white'}`}>
