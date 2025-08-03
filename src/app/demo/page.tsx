@@ -181,9 +181,17 @@ export default function DemoPage() {
 
         {/* CTA */}
         <div className="text-center mt-12">
-          <Link href="/dashboard/company" className="bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 inline-block">
-            Inizia Ora
-          </Link>
+          <div className="flex justify-center space-x-4">
+            <Link href="/dashboard/company" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+              🏢 Dashboard Azienda
+            </Link>
+            <Link href="/dashboard/employee" className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700">
+              👤 Dashboard Dipendente
+            </Link>
+            <Link href="/dashboard/partner" className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700">
+              🏪 Dashboard Partner
+            </Link>
+          </div>
         </div>
       </div>
     </div>
