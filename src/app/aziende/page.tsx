@@ -414,7 +414,7 @@ export default function AziendePage() {
               </h3>
               <p className={`text-sm mb-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 I benefit welfare non sono soggetti a contributi previdenziali. 
-                Risparmio aggiuntivo di circa il 10% dell'importo.
+                Risparmio aggiuntivo di circa il 10% dell&apos;importo.
               </p>
               <div className={`p-3 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
                 <p className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
@@ -452,7 +452,7 @@ export default function AziendePage() {
                   📏 Limiti e Soglie
                 </h4>
                 <ul className={`space-y-2 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                  <li>• <strong>Massimo €774,69</strong> per dipendente all'anno</li>
+                  <li>• <strong>Massimo €774,69</strong> per dipendente all&apos;anno</li>
                   <li>• <strong>Minimo 5 dipendenti</strong> per attivare il welfare</li>
                   <li>• <strong>Servizi pre-approvati</strong> secondo normativa</li>
                   <li>• <strong>Documentazione</strong> completa per deduzioni</li>
