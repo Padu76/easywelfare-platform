@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Link from 'next/link'
 
 export default function DemoPage() {
   const [userType, setUserType] = useState<'company' | 'employee' | 'partner'>('company')
@@ -158,9 +159,9 @@ export default function DemoPage() {
                     <div className="text-sm text-gray-600">Prezzo: 200 punti</div>
                     <div className="text-sm text-green-600">Vendite: 15 questo mese</div>
                   </div>
-                  <button className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700">
-                    Aggiungi Servizio
-                  </button>
+                  <Link href="/dashboard/partner/services" className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 block text-center">
+                    Gestisci Tutti i Servizi
+                  </Link>
                 </div>
               </div>
               
@@ -170,9 +171,9 @@ export default function DemoPage() {
                   <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg mx-auto flex items-center justify-center">
                     <span className="text-gray-500">📱 QR Scanner</span>
                   </div>
-                  <button className="mt-4 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
-                    Scansiona QR
-                  </button>
+                  <Link href="/dashboard/partner/vouchers" className="mt-4 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 inline-block">
+                    Avvia Scanner Completo
+                  </Link>
                 </div>
               </div>
             </>
