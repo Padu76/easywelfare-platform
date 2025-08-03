@@ -211,7 +211,7 @@ export default function QRScanner({ partnerId, onScanSuccess, onScanError }: QRS
             <Button 
               onClick={validateTransaction}
               loading={isProcessing}
-              disabled={isExpired}
+              disabled={!!isExpired}
               variant={isExpired ? 'danger' : 'success'}
             >
               {isProcessing ? 'Elaborando...' : '✅ Conferma'}
