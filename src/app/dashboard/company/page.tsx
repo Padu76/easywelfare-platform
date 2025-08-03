@@ -1,186 +1,424 @@
-'use client'
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { Employee, Service, Transaction, ServiceCategory, TransactionStatus, QRCodeData } from '@/types'
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useEasyWelfareStore } from '@/lib/store'
-
-export default function CompanyDashboard() {
-  const { company, employees, transactions } = useEasyWelfareStore()
-
-  // Calculate real stats
-  const activeEmployees = employees.filter(emp => emp.isActive)
-  const totalTransactions = transactions.length
-  const utilizationPercentage = company.totalCredits > 0 
-    ? (company.usedCredits / company.totalCredits) * 100 
-    : 0
-
-  return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard Azienda</h1>
-        <p className="text-gray-600">Panoramica del welfare aziendale per {company.name}</p>
-      </div>
-
-      {/* Stats Cards - REAL DATA */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
-                <span className="text-blue-600 text-lg">💳</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Crediti Totali</p>
-              <p className="text-2xl font-bold text-gray-900">€{company.totalCredits.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center">
-                <span className="text-green-600 text-lg">💰</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Crediti Utilizzati</p>
-              <p className="text-2xl font-bold text-gray-900">€{company.usedCredits.toLocaleString()}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
-                <span className="text-purple-600 text-lg">👥</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Dipendenti Attivi</p>
-              <p className="text-2xl font-bold text-gray-900">{activeEmployees.length}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-yellow-100 rounded-md flex items-center justify-center">
-                <span className="text-yellow-600 text-lg">📊</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Transazioni</p>
-              <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions - FIXED LINKS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Azioni Rapide</h3>
-          <div className="space-y-3">
-            <Link href="/dashboard/company/credits" className="w-full bg-blue-600 text-white py-3 px-4 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2">
-              <span>💳</span>
-              <span>Ricarica Crediti</span>
-            </Link>
-            <Link href="/dashboard/company/employees" className="w-full bg-green-600 text-white py-3 px-4 rounded-md hover:bg-green-700 transition-colors flex items-center justify-center space-x-2">
-              <span>👥</span>
-              <span>Distribuisci Punti</span>
-            </Link>
-            <Link href="/dashboard/company/reports" className="w-full bg-purple-600 text-white py-3 px-4 rounded-md hover:bg-purple-700 transition-colors flex items-center justify-center space-x-2">
-              <span>📈</span>
-              <span>Visualizza Report</span>
-            </Link>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Attività Recenti</h3>
-          <div className="space-y-4">
-            {transactions.slice(0, 3).map((transaction, index) => (
-              <div key={transaction.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
-                <span className="text-green-600">✅</span>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Transazione completata</p>
-                  <p className="text-xs text-gray-600">{transaction.pointsUsed} punti utilizzati</p>
-                </div>
-                <span className="text-xs text-gray-500">
-                  {new Date(transaction.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-            ))}
-            
-            {transactions.length === 0 && (
-              <div className="text-center py-4">
-                <p className="text-gray-500 text-sm">Nessuna attività recente</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Usage Chart with Real Data */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Utilizzo Crediti</h3>
-        <div className="space-y-4">
-          <div className="flex justify-between text-sm">
-            <span>Utilizzati: €{company.usedCredits.toLocaleString()}</span>
-            <span>Disponibili: €{company.availableCredits.toLocaleString()}</span>
-            <span>Totali: €{company.totalCredits.toLocaleString()}</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-3">
-            <div 
-              className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(utilizationPercentage, 100)}%` }}
-            ></div>
-          </div>
-          <p className="text-sm text-gray-600 text-center">
-            Utilizzo: {utilizationPercentage.toFixed(1)}% dei crediti totali
-          </p>
-        </div>
-      </div>
-
-      {/* Fiscal Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-lg p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">💡 Riepilogo Fiscale</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="text-center p-4 bg-white rounded-lg">
-            <p className="text-sm text-gray-600">Limite Annuale Consigliato</p>
-            <p className="text-xl font-bold text-green-600">
-              €{(activeEmployees.length * 258.23).toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-500">{activeEmployees.length} dipendenti × €258.23</p>
-          </div>
-          <div className="text-center p-4 bg-white rounded-lg">
-            <p className="text-sm text-gray-600">Utilizzato Anno Corrente</p>
-            <p className="text-xl font-bold text-yellow-600">€{company.usedCredits.toLocaleString()}</p>
-            <p className="text-xs text-gray-500">Tax-free utilizzato</p>
-          </div>
-          <div className="text-center p-4 bg-white rounded-lg">
-            <p className="text-sm text-gray-600">Risparmio Fiscale Stimato</p>
-            <p className="text-xl font-bold text-purple-600">
-              €{Math.round(company.usedCredits * 0.22).toLocaleString()}
-            </p>
-            <p className="text-xs text-gray-500">22% sui benefit erogati</p>
-          </div>
-        </div>
-        
-        {company.totalCredits > (activeEmployees.length * 258.23) && (
-          <div className="mt-4 bg-yellow-100 border border-yellow-300 rounded-lg p-3">
-            <p className="text-yellow-800 text-sm">
-              ⚠️ <strong>Attenzione:</strong> Hai caricato più del limite fiscale consigliato. 
-              L&apos;eccedenza potrebbe essere tassata come retribuzione.
-            </p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
+interface Company {
+  id: string
+  name: string
+  totalCredits: number
+  usedCredits: number
+  availableCredits: number
 }
+
+interface EasyWelfareStore {
+  // Company State
+  company: Company
+  employees: Employee[]
+  
+  // Services & Partners
+  services: Service[]
+  
+  // Transactions & QR
+  transactions: Transaction[]
+  activeQRs: QRCodeData[]
+  
+  // Current User Context (for demo purposes)
+  currentUserType: 'company' | 'employee' | 'partner'
+  currentUserId: string
+  
+  // Company Actions
+  addCredits: (amount: number) => void
+  addEmployee: (employee: Omit<Employee, 'id' | 'createdAt' | 'updatedAt'>) => void
+  updateEmployee: (employeeId: string, updates: Partial<Employee>) => void
+  distributePoints: (distributions: Array<{ employeeId: string; points: number }>) => void
+  
+  // Employee Actions
+  bookService: (employeeId: string, serviceId: string) => string // returns transaction ID
+  generateQR: (employeeId: string, serviceId: string) => QRCodeData
+  
+  // Partner Actions
+  addService: (service: Omit<Service, 'id' | 'createdAt' | 'updatedAt'>) => void
+  updateService: (serviceId: string, updates: Partial<Service>) => void
+  validateQR: (qrData: QRCodeData, partnerId: string) => boolean
+  
+  // Utility Actions
+  setCurrentUser: (userType: 'company' | 'employee' | 'partner', userId: string) => void
+  getEmployeeById: (employeeId: string) => Employee | undefined
+  getServiceById: (serviceId: string) => Service | undefined
+  getTransactionsByEmployee: (employeeId: string) => Transaction[]
+  getTransactionsByPartner: (partnerId: string) => Transaction[]
+}
+
+// Mock initial data
+const mockEmployees: Employee[] = [
+  {
+    id: 'emp_1',
+    companyId: 'comp_1',
+    firstName: 'Mario',
+    lastName: 'Rossi',
+    email: 'mario.rossi@techcorp.com',
+    phone: '+39 333 123 4567',
+    availablePoints: 650,   // Realistic amount
+    usedPoints: 350,        // Some usage
+    totalPoints: 1000,      // €1000 per year
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-15')
+  },
+  {
+    id: 'emp_2',
+    companyId: 'comp_1',
+    firstName: 'Giulia',
+    lastName: 'Bianchi',
+    email: 'giulia.bianchi@techcorp.com',
+    phone: '+39 333 987 6543',
+    availablePoints: 750,   // Different usage pattern
+    usedPoints: 250,
+    totalPoints: 1000,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-10')
+  },
+  {
+    id: 'emp_3',
+    companyId: 'comp_1',
+    firstName: 'Luca',
+    lastName: 'Verdi',
+    email: 'luca.verdi@techcorp.com',
+    phone: '+39 333 456 7890',
+    availablePoints: 750,   // Less usage
+    usedPoints: 250,
+    totalPoints: 1000,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-12')
+  }
+]
+
+const mockServices: Service[] = [
+  {
+    id: 'srv_1',
+    partnerId: 'ptr_1',
+    name: 'Personal Training',
+    description: 'Sessione di allenamento personalizzato con trainer qualificato da 60 minuti',
+    category: ServiceCategory.FITNESS,
+    pointsRequired: 200,
+    originalPrice: 50,
+    discountPercentage: 20,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-15')
+  },
+  {
+    id: 'srv_2',
+    partnerId: 'ptr_2',
+    name: 'Massaggio Rilassante',
+    description: 'Massaggio rilassante di 60 minuti per ridurre stress e tensioni',
+    category: ServiceCategory.WELLNESS,
+    pointsRequired: 150,
+    originalPrice: 80,
+    discountPercentage: 25,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-15')
+  },
+  {
+    id: 'srv_3',
+    partnerId: 'ptr_3',
+    name: 'Consulenza Nutrizionale',
+    description: 'Consulenza personalizzata con nutrizionista certificato',
+    category: ServiceCategory.NUTRITION,
+    pointsRequired: 100,
+    originalPrice: 60,
+    discountPercentage: 15,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-15')
+  },
+  {
+    id: 'srv_4',
+    partnerId: 'ptr_1',
+    name: 'Corso Yoga',
+    description: 'Lezione di yoga di gruppo per principianti e intermedi',
+    category: ServiceCategory.FITNESS,
+    pointsRequired: 80,
+    originalPrice: 25,
+    discountPercentage: 0,
+    isActive: true,
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-15')
+  }
+]
+
+const mockTransactions: Transaction[] = [
+  {
+    id: 'txn_1',
+    employeeId: 'emp_1',
+    serviceId: 'srv_1',
+    partnerId: 'ptr_1',
+    companyId: 'comp_1',
+    pointsUsed: 200,
+    status: TransactionStatus.COMPLETED,
+    qrCode: 'QR_PT_20240115_001',
+    redeemedAt: new Date('2024-01-15T14:30:00'),
+    createdAt: new Date('2024-01-15T14:25:00'),
+    updatedAt: new Date('2024-01-15T14:30:00')
+  },
+  {
+    id: 'txn_2',
+    employeeId: 'emp_2',
+    serviceId: 'srv_2',
+    partnerId: 'ptr_2',
+    companyId: 'comp_1',
+    pointsUsed: 150,
+    status: TransactionStatus.COMPLETED,
+    qrCode: 'QR_MS_20240112_002',
+    redeemedAt: new Date('2024-01-12T17:00:00'),
+    createdAt: new Date('2024-01-12T16:55:00'),
+    updatedAt: new Date('2024-01-12T17:00:00')
+  }
+]
+
+export const useEasyWelfareStore = create<EasyWelfareStore>()(
+  persist(
+    (set, get) => ({
+      // Initial State
+      company: {
+        id: 'comp_1',
+        name: 'TechCorp Verona',
+        totalCredits: 3000,  // Realistic: 3 employees × 1000€ each
+        usedCredits: 850,    // Some usage
+        availableCredits: 2150 // Remaining
+      },
+      employees: mockEmployees,
+      services: mockServices,
+      transactions: mockTransactions,
+      activeQRs: [],
+      currentUserType: 'company',
+      currentUserId: 'comp_1',
+
+      // Company Actions
+      addCredits: (amount: number) => {
+        set(state => ({
+          company: {
+            ...state.company,
+            totalCredits: state.company.totalCredits + amount,
+            availableCredits: state.company.availableCredits + amount
+          }
+        }))
+      },
+
+      addEmployee: (employeeData) => {
+        const newEmployee: Employee = {
+          ...employeeData,
+          id: `emp_${Date.now()}`,
+          companyId: 'comp_1',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        
+        set(state => ({
+          employees: [...state.employees, newEmployee]
+        }))
+      },
+
+      updateEmployee: (employeeId: string, updates: Partial<Employee>) => {
+        set(state => ({
+          employees: state.employees.map(emp => 
+            emp.id === employeeId 
+              ? { ...emp, ...updates, updatedAt: new Date() }
+              : emp
+          )
+        }))
+      },
+
+      distributePoints: (distributions) => {
+        set(state => {
+          const totalPointsToDistribute = distributions.reduce((sum, dist) => sum + dist.points, 0)
+          
+          // Check if company has enough credits
+          if (totalPointsToDistribute > state.company.availableCredits) {
+            console.error('Not enough credits available')
+            return state
+          }
+
+          const updatedEmployees = state.employees.map(emp => {
+            const distribution = distributions.find(dist => dist.employeeId === emp.id)
+            if (distribution) {
+              return {
+                ...emp,
+                availablePoints: emp.availablePoints + distribution.points,
+                totalPoints: emp.totalPoints + distribution.points,
+                updatedAt: new Date()
+              }
+            }
+            return emp
+          })
+
+          return {
+            employees: updatedEmployees,
+            company: {
+              ...state.company,
+              availableCredits: state.company.availableCredits - totalPointsToDistribute,
+              usedCredits: state.company.usedCredits + totalPointsToDistribute
+            }
+          }
+        })
+      },
+
+      // Employee Actions
+      bookService: (employeeId: string, serviceId: string) => {
+        const state = get()
+        const employee = state.employees.find(emp => emp.id === employeeId)
+        const service = state.services.find(srv => srv.id === serviceId)
+        
+        if (!employee || !service) {
+          console.error('Employee or service not found')
+          return ''
+        }
+
+        if (employee.availablePoints < service.pointsRequired) {
+          console.error('Insufficient points')
+          return ''
+        }
+
+        const transactionId = `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        
+        const newTransaction: Transaction = {
+          id: transactionId,
+          employeeId,
+          serviceId,
+          partnerId: service.partnerId,
+          companyId: employee.companyId,
+          pointsUsed: service.pointsRequired,
+          status: TransactionStatus.PENDING,
+          qrCode: `QR_${serviceId.toUpperCase()}_${Date.now()}`,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+
+        set(state => ({
+          transactions: [...state.transactions, newTransaction],
+          employees: state.employees.map(emp => 
+            emp.id === employeeId
+              ? { 
+                  ...emp, 
+                  availablePoints: emp.availablePoints - service.pointsRequired,
+                  usedPoints: emp.usedPoints + service.pointsRequired,
+                  updatedAt: new Date() 
+                }
+              : emp
+          )
+        }))
+
+        return transactionId
+      },
+
+      generateQR: (employeeId: string, serviceId: string) => {
+        const state = get()
+        const service = state.services.find(srv => srv.id === serviceId)
+        
+        if (!service) {
+          throw new Error('Service not found')
+        }
+
+        const qrData: QRCodeData = {
+          transactionId: `qr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          employeeId,
+          serviceId,
+          pointsToRedeem: service.pointsRequired,
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
+        }
+
+        set(state => ({
+          activeQRs: [...state.activeQRs, qrData]
+        }))
+
+        return qrData
+      },
+
+      // Partner Actions
+      addService: (serviceData) => {
+        const newService: Service = {
+          ...serviceData,
+          id: `srv_${Date.now()}`,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        
+        set(state => ({
+          services: [...state.services, newService]
+        }))
+      },
+
+      updateService: (serviceId: string, updates: Partial<Service>) => {
+        set(state => ({
+          services: state.services.map(srv => 
+            srv.id === serviceId 
+              ? { ...srv, ...updates, updatedAt: new Date() }
+              : srv
+          )
+        }))
+      },
+
+      validateQR: (qrData: QRCodeData, partnerId: string) => {
+        const state = get()
+        
+        // Check if QR is expired
+        if (new Date() > qrData.expiresAt) {
+          console.error('QR Code expired')
+          return false
+        }
+
+        // Find the corresponding transaction and complete it
+        set(state => ({
+          transactions: state.transactions.map(txn => 
+            txn.qrCode === JSON.stringify(qrData)
+              ? { 
+                  ...txn, 
+                  status: TransactionStatus.COMPLETED,
+                  redeemedAt: new Date(),
+                  updatedAt: new Date()
+                }
+              : txn
+          ),
+          activeQRs: state.activeQRs.filter(qr => qr.transactionId !== qrData.transactionId)
+        }))
+
+        return true
+      },
+
+      // Utility Actions
+      setCurrentUser: (userType, userId) => {
+        set({ currentUserType: userType, currentUserId: userId })
+      },
+
+      getEmployeeById: (employeeId: string) => {
+        return get().employees.find(emp => emp.id === employeeId)
+      },
+
+      getServiceById: (serviceId: string) => {
+        return get().services.find(srv => srv.id === serviceId)
+      },
+
+      getTransactionsByEmployee: (employeeId: string) => {
+        return get().transactions.filter(txn => txn.employeeId === employeeId)
+      },
+
+      getTransactionsByPartner: (partnerId: string) => {
+        return get().transactions.filter(txn => txn.partnerId === partnerId)
+      }
+    }),
+    {
+      name: 'easywelfare-store', // localStorage key
+      partialize: (state) => ({
+        company: state.company,
+        employees: state.employees,
+        services: state.services,
+        transactions: state.transactions,
+        currentUserType: state.currentUserType,
+        currentUserId: state.currentUserId
+      })
+    }
+  )
+)
