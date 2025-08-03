@@ -171,6 +171,7 @@ export default function EmployeeCatalogPage() {
 
       {/* Main Service Catalog */}
       <ServiceBookingSystem 
+        services={[]} // Uses mock services from component
         userPoints={userPoints}
         onBookService={handleServiceBooked}
       />
