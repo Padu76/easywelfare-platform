@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { supabase, db } from '@/lib/supabase'
 
+// Forza rendering dinamico per evitare errori di build
+export const dynamic = 'force-dynamic'
+
 export default function TestDatabasePage() {
   const [connectionStatus, setConnectionStatus] = useState<'testing' | 'success' | 'error'>('testing')
   const [tables, setTables] = useState<string[]>([])
@@ -17,10 +20,10 @@ export default function TestDatabasePage() {
     try {
       console.log('🧪 Testing Supabase connection...')
       
-      // Test 1: Connessione base
+      // Test 1: Connessione base (query semplificata)
       const { data: connectionTest, error: connectionError } = await supabase
         .from('companies')
-        .select('count(*)')
+        .select('id')
         .limit(1)
 
       if (connectionError) {
@@ -34,12 +37,12 @@ export default function TestDatabasePage() {
       
       // Testiamo ogni tabella per verificare che esistano
       const tableTests = await Promise.allSettled([
-        supabase.from('companies').select('count(*)').limit(1),
-        supabase.from('employees').select('count(*)').limit(1),
-        supabase.from('partners').select('count(*)').limit(1),
-        supabase.from('services').select('count(*)').limit(1),
-        supabase.from('transactions').select('count(*)').limit(1),
-        supabase.from('credits_history').select('count(*)').limit(1),
+        supabase.from('companies').select('id').limit(1),
+        supabase.from('employees').select('id').limit(1),
+        supabase.from('partners').select('id').limit(1),
+        supabase.from('services').select('id').limit(1),
+        supabase.from('transactions').select('id').limit(1),
+        supabase.from('credits_history').select('id').limit(1),
       ])
 
       // Verifica quali tabelle esistono
