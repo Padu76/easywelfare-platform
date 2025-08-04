@@ -31,7 +31,7 @@ export default function CompanyDashboard() {
 
   useEffect(() => {
     loadDashboardData()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDashboardData = async () => {
     try {
@@ -82,11 +82,7 @@ export default function CompanyDashboard() {
 
       const { data: transactions, error: transactionsError } = await supabase
         .from('transactions')
-        .select(`
-          *,
-          employees!inner(first_name, last_name),
-          services!inner(name, points_required)
-        `)
+        .select('*')
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(5)
@@ -298,14 +294,9 @@ export default function CompanyDashboard() {
                 <div key={transaction.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-md">
                   <span className="text-green-600">✅</span>
                   <div className="flex-1">
-                    <p className="text-sm font-medium">
-                      {transaction.services?.name || 'Servizio'} utilizzato
-                    </p>
+                    <p className="text-sm font-medium">Transazione completata</p>
                     <p className="text-xs text-gray-600">
-                      {transaction.employees ? 
-                        `${transaction.employees.first_name} ${transaction.employees.last_name}` : 
-                        'Dipendente'
-                      } - {transaction.points_used} punti
+                      {transaction.points_used} punti utilizzati
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
