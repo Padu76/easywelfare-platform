@@ -12,11 +12,12 @@ interface DashboardStats {
   activeEmployees: number
   totalTransactions: number
   monthlySpend: number
-  recentTransactions: Transaction[]
+  recentTransactions: any[]
+  isUsingDemoData: boolean
 }
 
 export default function CompanyDashboard() {
-  const [companyData, setCompanyData] = useState<Company | null>(null)
+  const [companyData, setCompanyData] = useState<any>(null)
   const [stats, setStats] = useState<DashboardStats>({
     totalCredits: 0,
     usedCredits: 0,
@@ -24,7 +25,8 @@ export default function CompanyDashboard() {
     activeEmployees: 0,
     totalTransactions: 0,
     monthlySpend: 0,
-    recentTransactions: []
+    recentTransactions: [],
+    isUsingDemoData: false
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,72 +35,156 @@ export default function CompanyDashboard() {
     loadDashboardData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const createDemoData = async () => {
+    try {
+      console.log('Creating demo data...')
+      
+      // Create demo company
+      const { data: newCompany, error: companyError } = await supabase
+        .from('companies')
+        .insert([{
+          name: 'TechCorp Verona',
+          email: 'admin@techcorp.com',
+          phone: '+39 045 123 4567',
+          address: 'Via Roma 123, Verona',
+          vat_number: 'IT12345678901',
+          total_credits: 3000,
+          used_credits: 850,
+          active_employees: 3
+        }])
+        .select()
+        .single()
+
+      if (companyError) {
+        console.warn('Company creation failed:', companyError)
+        return null
+      }
+
+      // Create demo employees
+      const { data: newEmployees, error: employeesError } = await supabase
+        .from('employees')
+        .insert([
+          {
+            company_id: newCompany.id,
+            first_name: 'Mario',
+            last_name: 'Rossi',
+            email: 'mario.rossi@techcorp.com',
+            phone: '+39 333 123 4567',
+            available_points: 750,
+            used_points: 250,
+            total_points: 1000,
+            is_active: true
+          },
+          {
+            company_id: newCompany.id,
+            first_name: 'Giulia',
+            last_name: 'Bianchi',
+            email: 'giulia.bianchi@techcorp.com',
+            phone: '+39 333 987 6543',
+            available_points: 450,
+            used_points: 550,
+            total_points: 1000,
+            is_active: true
+          },
+          {
+            company_id: newCompany.id,
+            first_name: 'Luca',
+            last_name: 'Verdi',
+            email: 'luca.verdi@techcorp.com',
+            phone: '+39 333 456 7890',
+            available_points: 200,
+            used_points: 300,
+            total_points: 500,
+            is_active: true
+          }
+        ])
+        .select()
+
+      if (employeesError) {
+        console.warn('Employees creation failed:', employeesError)
+      }
+
+      return newCompany
+    } catch (err) {
+      console.error('Error creating demo data:', err)
+      return null
+    }
+  }
+
   const loadDashboardData = async () => {
     try {
       setLoading(true)
       setError(null)
+      let isUsingDemo = false
 
-      // Load company data (assuming we're working with the first company for now)
+      console.log('Loading dashboard data...')
+
+      // Try to load existing company data
       const { data: companies, error: companiesError } = await supabase
         .from('companies')
         .select('*')
         .limit(1)
-        .single()
+
+      let companyRecord = null
 
       if (companiesError) {
-        // If no companies exist, create a demo company
-        const { data: newCompany, error: createError } = await supabase
-          .from('companies')
-          .insert([{
-            name: 'TechCorp Verona',
-            email: 'admin@techcorp.com',
-            phone: '+39 045 123 4567',
-            address: 'Via Roma 123, Verona',
-            vat_number: 'IT12345678901',
-            total_credits: 3000,
-            used_credits: 850,
-            active_employees: 3
-          }])
-          .select()
-          .single()
-
-        if (createError) throw createError
-        setCompanyData(newCompany)
-      } else {
-        setCompanyData(companies)
+        console.error('Companies query failed:', companiesError)
+        throw new Error('Errore nell\'accesso alle tabelle aziende')
       }
 
+      if (!companies || companies.length === 0) {
+        console.log('No companies found, creating demo data...')
+        companyRecord = await createDemoData()
+        isUsingDemo = true
+        
+        if (!companyRecord) {
+          throw new Error('Impossibile creare dati demo')
+        }
+      } else {
+        companyRecord = companies[0]
+        console.log('Found existing company:', companyRecord.name)
+      }
+
+      setCompanyData(companyRecord)
+
       // Load employees data
-      const { data: employees, error: employeesError } = await supabase
+      let employees = []
+      const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
         .select('*')
         .eq('is_active', true)
 
-      if (employeesError) throw employeesError
+      if (employeesError) {
+        console.warn('Employees query failed:', employeesError)
+      } else {
+        employees = employeesData || []
+      }
 
       // Load transactions data (last 30 days)
+      let transactions = []
       const thirtyDaysAgo = new Date()
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-      const { data: transactions, error: transactionsError } = await supabase
+      const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
         .gte('created_at', thirtyDaysAgo.toISOString())
         .order('created_at', { ascending: false })
         .limit(5)
 
-      if (transactionsError && transactionsError.code !== 'PGRST116') {
+      if (transactionsError) {
         console.warn('Transactions query failed:', transactionsError)
+      } else {
+        transactions = transactionsData || []
       }
 
       // Calculate stats
-      const totalTransactions = transactions?.length || 0
-      const monthlySpend = transactions?.reduce((sum, txn) => sum + ((txn as any).points_used || 0), 0) || 0
-      const activeEmployees = employees?.length || 0
+      const totalTransactions = transactions.length
+      const monthlySpend = transactions.reduce((sum, txn) => sum + (txn.points_used || 0), 0)
+      const activeEmployees = employees.length
       
-      const company = companies || companyData
-      const totalCredits = (company as any)?.total_credits || 0
-      const usedCredits = (company as any)?.used_credits || 0
+      const totalCredits = companyRecord?.total_credits || 0
+      const usedCredits = companyRecord?.used_credits || 0
       const availableCredits = totalCredits - usedCredits
 
       setStats({
@@ -108,12 +194,20 @@ export default function CompanyDashboard() {
         activeEmployees,
         totalTransactions,
         monthlySpend,
-        recentTransactions: transactions || []
+        recentTransactions: transactions,
+        isUsingDemoData: isUsingDemo
+      })
+
+      console.log('Dashboard data loaded successfully', {
+        company: companyRecord.name,
+        employees: activeEmployees,
+        transactions: totalTransactions,
+        isDemo: isUsingDemo
       })
 
     } catch (err) {
       console.error('Error loading dashboard data:', err)
-      setError('Errore nel caricamento dei dati. Verifica la connessione al database.')
+      setError(err instanceof Error ? err.message : 'Errore nel caricamento dei dati')
     } finally {
       setLoading(false)
     }
@@ -155,13 +249,25 @@ export default function CompanyDashboard() {
           <p className="text-gray-600">Errore nel caricamento</p>
         </div>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
-          <button 
-            onClick={loadDashboardData}
-            className="mt-2 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-          >
-            Riprova
-          </button>
+          <div className="flex items-center mb-2">
+            <span className="text-red-600 text-lg mr-2">❌</span>
+            <h3 className="text-red-800 font-bold">Errore Database</h3>
+          </div>
+          <p className="text-red-800 mb-4">{error}</p>
+          <div className="space-y-2">
+            <button 
+              onClick={loadDashboardData}
+              className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 mr-2"
+            >
+              🔄 Riprova
+            </button>
+            <Link 
+              href="/test-db"
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 inline-block"
+            >
+              🧪 Testa Database
+            </Link>
+          </div>
         </div>
       </div>
     )
@@ -176,6 +282,22 @@ export default function CompanyDashboard() {
           Panoramica del welfare aziendale per {companyData?.name || 'La tua azienda'}
         </p>
       </div>
+
+      {/* Demo Data Alert */}
+      {stats.isUsingDemoData && (
+        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <span className="text-2xl mr-3">🚀</span>
+            <div className="flex-1">
+              <h3 className="text-blue-800 font-bold">Dati Demo Creati!</h3>
+              <p className="text-blue-700 text-sm mt-1">
+                Ho creato un&apos;azienda demo con 3 dipendenti per iniziare. 
+                Puoi modificare questi dati o aggiungerne di nuovi.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fiscal Alert */}
       {isOverFiscalLimit && (
@@ -296,11 +418,11 @@ export default function CompanyDashboard() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">Transazione completata</p>
                     <p className="text-xs text-gray-600">
-                      {(transaction as any).points_used} punti utilizzati
+                      {transaction.points_used} punti utilizzati
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {new Date((transaction as any).created_at).toLocaleDateString('it-IT')}
+                    {new Date(transaction.created_at).toLocaleDateString('it-IT')}
                   </span>
                 </div>
               ))
@@ -371,23 +493,19 @@ export default function CompanyDashboard() {
             </p>
           </div>
         )}
-
-        <div className="mt-4 bg-blue-100 border border-blue-300 rounded-lg p-3">
-          <p className="text-blue-800 text-sm">
-            🔗 <strong>Database Connesso:</strong> Stai visualizzando dati reali da Supabase. 
-            <Link href="/dashboard/company/credits" className="underline hover:text-blue-900">
-              Gestisci i crediti reali qui
-            </Link>
-          </p>
-        </div>
       </div>
 
       {/* Connection Status */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+      <div className={`border rounded-lg p-3 ${stats.isUsingDemoData ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
         <div className="flex items-center">
-          <span className="text-green-600 text-lg mr-2">✅</span>
-          <p className="text-green-800 text-sm">
-            <strong>Database Attivo:</strong> Connesso a Supabase - Dati sincronizzati in tempo reale
+          <span className={`text-lg mr-2 ${stats.isUsingDemoData ? 'text-blue-600' : 'text-green-600'}`}>
+            {stats.isUsingDemoData ? '🚀' : '✅'}
+          </span>
+          <p className={`text-sm ${stats.isUsingDemoData ? 'text-blue-800' : 'text-green-800'}`}>
+            <strong>Database Status:</strong> {stats.isUsingDemoData 
+              ? 'Connesso con dati demo - Puoi iniziare a usare la piattaforma!' 
+              : 'Connesso con dati reali - Sistema operativo'
+            }
           </p>
         </div>
       </div>
