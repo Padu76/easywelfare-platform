@@ -50,7 +50,7 @@ export default function CompanyDashboard() {
           vat_number: 'IT12345678901',
           total_credits: 3000,
           used_credits: 850,
-          active_employees: 3
+          employees_count: 3
         }])
         .select()
         .single()
