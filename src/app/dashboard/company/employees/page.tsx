@@ -367,15 +367,24 @@ export default function CompanyEmployeesPage() {
 
       // Update each employee
       for (const distribution of distributions) {
-        const { error: updateError } = await supabase
+        // First, get current values
+        const { data: currentEmployee } = await supabase
           .from('employees')
-          .update({
-            available_points: supabase.raw(`available_points + ${distribution.points}`),
-            total_points: supabase.raw(`total_points + ${distribution.points}`)
-          })
+          .select('available_points, total_points')
           .eq('id', distribution.employeeId)
+          .single()
 
-        if (updateError) throw updateError
+        if (currentEmployee) {
+          const { error: updateError } = await supabase
+            .from('employees')
+            .update({
+              available_points: currentEmployee.available_points + distribution.points,
+              total_points: currentEmployee.total_points + distribution.points
+            })
+            .eq('id', distribution.employeeId)
+
+          if (updateError) throw updateError
+        }
       }
 
       // Update company used credits
