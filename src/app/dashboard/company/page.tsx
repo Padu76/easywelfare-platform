@@ -93,12 +93,12 @@ export default function CompanyDashboard() {
 
       // Calculate stats
       const totalTransactions = transactions?.length || 0
-      const monthlySpend = transactions?.reduce((sum, txn) => sum + (txn.points_used || 0), 0) || 0
+      const monthlySpend = transactions?.reduce((sum, txn) => sum + ((txn as any).points_used || 0), 0) || 0
       const activeEmployees = employees?.length || 0
       
       const company = companies || companyData
-      const totalCredits = company?.total_credits || 0
-      const usedCredits = company?.used_credits || 0
+      const totalCredits = (company as any)?.total_credits || 0
+      const usedCredits = (company as any)?.used_credits || 0
       const availableCredits = totalCredits - usedCredits
 
       setStats({
@@ -296,11 +296,11 @@ export default function CompanyDashboard() {
                   <div className="flex-1">
                     <p className="text-sm font-medium">Transazione completata</p>
                     <p className="text-xs text-gray-600">
-                      {transaction.points_used} punti utilizzati
+                      {(transaction as any).points_used} punti utilizzati
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {new Date(transaction.created_at).toLocaleDateString('it-IT')}
+                    {new Date((transaction as any).created_at).toLocaleDateString('it-IT')}
                   </span>
                 </div>
               ))
