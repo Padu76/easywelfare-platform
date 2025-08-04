@@ -350,13 +350,13 @@ export default function CompanyEmployeesPage() {
     }
   }
 
-  const handleDistributePoints = async (distributions: Array<{ employeeId: string; points: number }>) => {
+  const handleDistributePoints = async (distributions: Array<{ employeeId: string; employeeName: string; currentPoints: number; newPoints: number; totalPoints: number }>) => {
     if (!companyData) return
 
     try {
       setIsProcessing(true)
 
-      const totalPointsToDistribute = distributions.reduce((sum, dist) => sum + dist.points, 0)
+      const totalPointsToDistribute = distributions.reduce((sum, dist) => sum + dist.newPoints, 0)
 
       // Check if company has enough credits
       const availableCredits = companyData.total_credits - companyData.used_credits
@@ -378,8 +378,8 @@ export default function CompanyEmployeesPage() {
           const { error: updateError } = await supabase
             .from('employees')
             .update({
-              available_points: currentEmployee.available_points + distribution.points,
-              total_points: currentEmployee.total_points + distribution.points
+              available_points: currentEmployee.available_points + distribution.newPoints,
+              total_points: currentEmployee.total_points + distribution.newPoints
             })
             .eq('id', distribution.employeeId)
 
