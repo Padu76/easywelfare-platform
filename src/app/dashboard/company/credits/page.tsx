@@ -44,7 +44,7 @@ export default function CompanyCreditsPage() {
     lastName: '',
     email: '',
     phone: '',
-    hireDate: new Date().toISOString().split('T')[0] // Today's date
+    hireDate: new Date().toISOString().split('T')[0]
   })
 
   useEffect(() => {
@@ -53,7 +53,7 @@ export default function CompanyCreditsPage() {
 
   const calculateFiscalLimits = (employeesList: any[], currentDate = new Date()): FiscalLimits => {
     const currentYear = currentDate.getFullYear()
-    const currentMonth = currentDate.getMonth() + 1 // 1-12
+    const currentMonth = currentDate.getMonth() + 1
     
     let totalLimit = 0
     const employeeBreakdown: FiscalLimits['employeeBreakdown'] = []
@@ -61,19 +61,16 @@ export default function CompanyCreditsPage() {
     employeesList.forEach(emp => {
       if (!emp.is_active) return
 
-      // Parse hire date
       const hireDate = new Date(emp.created_at || emp.hire_date || '2024-01-01')
       const hireYear = hireDate.getFullYear()
       const hireMonth = hireDate.getMonth() + 1
 
       let monthsInCurrentYear = 12
       
-      // If hired this year, calculate remaining months
       if (hireYear === currentYear) {
         monthsInCurrentYear = 12 - hireMonth + 1
       }
 
-      // Proportional limit calculation
       const personalLimit = (258.23 * monthsInCurrentYear) / 12
       totalLimit += personalLimit
 
@@ -104,7 +101,6 @@ export default function CompanyCreditsPage() {
       setLoading(true)
       setError(null)
 
-      // Load company data
       const { data: companies, error: companiesError } = await supabase
         .from('companies')
         .select('*')
@@ -114,7 +110,6 @@ export default function CompanyCreditsPage() {
 
       let company = null
       if (!companies || companies.length === 0) {
-        // Create demo company if none exists
         const { data: newCompany, error: createError } = await supabase
           .from('companies')
           .insert([{
@@ -123,7 +118,7 @@ export default function CompanyCreditsPage() {
             phone: '+39 045 123 4567',
             address: 'Via Roma 123, Verona',
             vat_number: 'IT12345678901',
-            total_credits: 0, // Start with 0 to enforce fiscal limits
+            total_credits: 0,
             used_credits: 0,
             employees_count: 0
           }])
@@ -138,7 +133,6 @@ export default function CompanyCreditsPage() {
 
       setCompanyData(company)
 
-      // Load employees
       const { data: employeesData, error: employeesError } = await supabase
         .from('employees')
         .select('*')
@@ -151,7 +145,6 @@ export default function CompanyCreditsPage() {
         setEmployees(employeesData || [])
       }
 
-      // Calculate fiscal limits
       const limits = calculateFiscalLimits(employeesData || [])
       setFiscalLimits(limits)
 
@@ -167,7 +160,6 @@ export default function CompanyCreditsPage() {
     const amount = parseFloat(rechargeAmount)
     if (!amount || amount <= 0) return
 
-    // FISCAL CONTROL: Check if recharge would exceed limit
     const newTotalCredits = (companyData?.total_credits || 0) + amount
     
     if (newTotalCredits > fiscalLimits.totalLimit) {
@@ -182,10 +174,8 @@ export default function CompanyCreditsPage() {
     setIsProcessing(true)
     
     try {
-      // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000))
       
-      // Update company credits in database
       const { data: updatedCompany, error: updateError } = await supabase
         .from('companies')
         .update({
@@ -200,7 +190,6 @@ export default function CompanyCreditsPage() {
       setCompanyData(updatedCompany)
       setRechargeAmount('')
       
-      // Recalculate fiscal limits
       const newLimits = calculateFiscalLimits(employees)
       setFiscalLimits(newLimits)
       
@@ -242,15 +231,12 @@ export default function CompanyCreditsPage() {
 
       if (employeeError) throw employeeError
 
-      // Update employees list
       const updatedEmployees = [...employees, createdEmployee]
       setEmployees(updatedEmployees)
 
-      // Recalculate fiscal limits with new employee
       const newLimits = calculateFiscalLimits(updatedEmployees)
       setFiscalLimits(newLimits)
 
-      // Update company employee count
       await supabase
         .from('companies')
         .update({ employees_count: updatedEmployees.filter(emp => emp.is_active).length })
@@ -329,21 +315,15 @@ export default function CompanyCreditsPage() {
   }
 
   const activeEmployees = employees.filter(emp => emp.is_active)
-  const utilizationPercentage = companyData?.total_credits > 0 
-    ? ((companyData?.used_credits || 0) / companyData.total_credits) * 100 
-    : 0
-
   const preview = getRechargePreview()
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Gestione Crediti</h1>
         <p className="text-gray-600">Monitora e ricarica i crediti welfare con controlli fiscali automatici</p>
       </div>
 
-      {/* FISCAL ALERT */}
       {fiscalLimits.isOverLimit && (
         <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
           <div className="flex items-center">
@@ -351,15 +331,13 @@ export default function CompanyCreditsPage() {
             <div className="flex-1">
               <h3 className="text-red-800 font-bold">ATTENZIONE: Limite Fiscale Superato!</h3>
               <p className="text-red-700 text-sm mt-1">
-                Hai €{(fiscalLimits.usedAmount - fiscalLimits.totalLimit).toFixed(2)} oltre il limite tax-free. 
-                Eccedenza tassabile al 22%.
+                Hai €{(fiscalLimits.usedAmount - fiscalLimits.totalLimit).toFixed(2)} oltre il limite tax-free.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Credits Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <Card.Content>
@@ -369,9 +347,6 @@ export default function CompanyCreditsPage() {
                 <p className={`text-2xl font-bold ${fiscalLimits.isOverLimit ? 'text-red-600' : 'text-gray-900'}`}>
                   €{(companyData?.total_credits || 0).toLocaleString()}
                 </p>
-                {fiscalLimits.isOverLimit && (
-                  <p className="text-xs text-red-600">⚠️ Oltre il limite</p>
-                )}
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <span className="text-blue-600 text-xl">💳</span>
@@ -401,7 +376,6 @@ export default function CompanyCreditsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Disponibile Tax-Free</p>
                 <p className="text-2xl font-bold text-blue-600">€{fiscalLimits.availableAmount.toLocaleString()}</p>
-                <p className="text-xs text-blue-500">Senza tasse aggiuntive</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <span className="text-blue-600 text-xl">✅</span>
@@ -416,7 +390,6 @@ export default function CompanyCreditsPage() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Utilizzato</p>
                 <p className="text-2xl font-bold text-yellow-600">€{(companyData?.used_credits || 0).toLocaleString()}</p>
-                <p className="text-xs text-yellow-500">Anno corrente</p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                 <span className="text-yellow-600 text-xl">💰</span>
@@ -426,9 +399,7 @@ export default function CompanyCreditsPage() {
         </Card>
       </div>
 
-      {/* Recharge and Employee Management */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recharge Section */}
         <Card>
           <Card.Header>
             <h3 className="text-lg font-semibold text-gray-900">💳 Ricarica Crediti</h3>
@@ -443,10 +414,8 @@ export default function CompanyCreditsPage() {
                 value={rechargeAmount}
                 onChange={(e) => setRechargeAmount(e.target.value)}
                 icon={<span>€</span>}
-                max={fiscalLimits.availableAmount}
               />
               
-              {/* FISCAL PREVIEW */}
               {rechargeAmount && parseFloat(rechargeAmount) > 0 && (
                 <div className={`border rounded-lg p-3 ${preview.wouldExceed ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                   <p className={`text-sm font-medium mb-1 ${preview.wouldExceed ? 'text-red-800' : 'text-green-800'}`}>
@@ -464,7 +433,6 @@ export default function CompanyCreditsPage() {
                 </div>
               )}
               
-              {/* Suggested Amounts */}
               {fiscalLimits.availableAmount > 0 && (
                 <div>
                   <p className="text-sm font-medium text-gray-700 mb-2">💡 Importi Consigliati (Tax-Free):</p>
@@ -500,7 +468,6 @@ export default function CompanyCreditsPage() {
           </Card.Content>
         </Card>
 
-        {/* Add Employee Section */}
         <Card>
           <Card.Header>
             <h3 className="text-lg font-semibold text-gray-900">👥 Aggiungi Dipendente</h3>
@@ -511,7 +478,7 @@ export default function CompanyCreditsPage() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-blue-800 text-sm font-medium">💡 Calcolo Fiscale Automatico</p>
                 <p className="text-blue-700 text-sm mt-1">
-                  Ogni nuovo dipendente aumenta il limite tax-free proporzionalmente ai mesi rimanenti nell'anno.
+                  Ogni nuovo dipendente aumenta il limite tax-free proporzionalmente ai mesi rimanenti.
                 </p>
               </div>
 
@@ -527,7 +494,6 @@ export default function CompanyCreditsPage() {
         </Card>
       </div>
 
-      {/* Employee Breakdown */}
       <Card>
         <Card.Header>
           <h3 className="text-lg font-semibold text-gray-900">📊 Dettaglio Limiti per Dipendente</h3>
@@ -566,7 +532,6 @@ export default function CompanyCreditsPage() {
         </Card.Content>
       </Card>
 
-      {/* Add Employee Modal */}
       {showAddEmployee && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
@@ -616,23 +581,6 @@ export default function CompanyCreditsPage() {
                 value={newEmployee.hireDate}
                 onChange={(e) => setNewEmployee(prev => ({ ...prev, hireDate: e.target.value }))}
               />
-
-              {/* Preview fiscal impact */}
-              {newEmployee.hireDate && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                  <p className="text-green-800 text-sm font-medium">📈 Impatto Fiscale</p>
-                  <p className="text-green-700 text-sm mt-1">
-                    Nuovo limite totale: €{(fiscalLimits.totalLimit + calculateFiscalLimits([{
-                      id: &apos;temp&apos;,
-                      first_name: newEmployee.firstName || &apos;Nuovo&apos;,
-                      last_name: newEmployee.lastName || &apos;Dipendente&apos;,
-                      is_active: true,
-                      hire_date: newEmployee.hireDate,
-                      created_at: newEmployee.hireDate
-                    }]).totalLimit).toFixed(2)}
-                  </p>
-                </div>
-              )}
               
               <div className="flex space-x-3">
                 <Button
@@ -656,7 +604,6 @@ export default function CompanyCreditsPage() {
         </div>
       )}
 
-      {/* Status Summary */}
       <div className={`border rounded-lg p-3 ${fiscalLimits.isOverLimit ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
         <div className="flex items-center">
           <span className={`text-lg mr-2 ${fiscalLimits.isOverLimit ? 'text-red-600' : 'text-green-600'}`}>
