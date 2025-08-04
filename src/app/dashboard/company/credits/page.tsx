@@ -623,9 +623,9 @@ export default function CompanyCreditsPage() {
                   <p className="text-green-800 text-sm font-medium">📈 Impatto Fiscale</p>
                   <p className="text-green-700 text-sm mt-1">
                     Nuovo limite totale: €{(fiscalLimits.totalLimit + calculateFiscalLimits([{
-                      id: 'temp',
-                      first_name: newEmployee.firstName || 'Nuovo',
-                      last_name: newEmployee.lastName || 'Dipendente',
+                      id: &apos;temp&apos;,
+                      first_name: newEmployee.firstName || &apos;Nuovo&apos;,
+                      last_name: newEmployee.lastName || &apos;Dipendente&apos;,
                       is_active: true,
                       hire_date: newEmployee.hireDate,
                       created_at: newEmployee.hireDate
