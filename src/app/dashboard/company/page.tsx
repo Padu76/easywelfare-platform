@@ -300,7 +300,7 @@ export default function CompanyDashboard() {
                     </p>
                   </div>
                   <span className="text-xs text-gray-500">
-                    {new Date(transaction.created_at).toLocaleDateString('it-IT')}
+                    {new Date(transaction.createdAt).toLocaleDateString('it-IT')}
                   </span>
                 </div>
               ))
