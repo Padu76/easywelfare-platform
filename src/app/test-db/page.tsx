@@ -29,23 +29,25 @@ export default function TestDatabasePage() {
 
       console.log('✅ Database connection successful!')
 
-      // Test 2: Lista delle tabelle
-      const { data: tablesData, error: tablesError } = await supabase
-        .rpc('get_table_names') // Non esiste, ma proviamo comunque
-        .catch(() => {
-          // Fallback: testiamo ogni tabella manualmente
-          return Promise.all([
-            supabase.from('companies').select('count(*)').limit(1),
-            supabase.from('employees').select('count(*)').limit(1),
-            supabase.from('partners').select('count(*)').limit(1),
-            supabase.from('services').select('count(*)').limit(1),
-            supabase.from('transactions').select('count(*)').limit(1),
-            supabase.from('credits_history').select('count(*)').limit(1),
-          ])
-        })
-
+      // Test 2: Lista delle tabelle (semplificato)
       const tableNames = ['companies', 'employees', 'partners', 'services', 'transactions', 'credits_history']
-      setTables(tableNames)
+      
+      // Testiamo ogni tabella per verificare che esistano
+      const tableTests = await Promise.allSettled([
+        supabase.from('companies').select('count(*)').limit(1),
+        supabase.from('employees').select('count(*)').limit(1),
+        supabase.from('partners').select('count(*)').limit(1),
+        supabase.from('services').select('count(*)').limit(1),
+        supabase.from('transactions').select('count(*)').limit(1),
+        supabase.from('credits_history').select('count(*)').limit(1),
+      ])
+
+      // Verifica quali tabelle esistono
+      const existingTables = tableNames.filter((_, index) => 
+        tableTests[index].status === 'fulfilled'
+      )
+      
+      setTables(existingTables)
 
       // Test 3: CRUD operations di base
       const tests = []
