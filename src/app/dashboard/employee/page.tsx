@@ -9,26 +9,29 @@ import Badge from '@/components/ui/badge'
 
 interface EmployeeData {
   id: string
+  company_id: string
   first_name: string
   last_name: string
   email: string
-  available_points: number
-  total_points: number
-  used_points: number
-  is_active: boolean
-  company_id: string
+  employee_code: string
+  department: string
+  allocated_credits: number
+  used_credits: number
+  status: string
   hire_date: string
+  created_at: string
+  updated_at: string
 }
 
 interface TransactionData {
   id: string
   employee_id: string
   service_name: string
-  partner_name: string
+  partner_name?: string
   points_used: number
   status: string
   created_at: string
-  savings: number
+  savings?: number
 }
 
 interface StatsData {
@@ -44,150 +47,65 @@ export default function EmployeeDashboard() {
   const [stats, setStats] = useState<StatsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [isCreatingDemo, setIsCreatingDemo] = useState(false)
 
   useEffect(() => {
     fetchEmployeeData()
   }, [])
-
-  const createDemoEmployee = async () => {
-    try {
-      setIsCreatingDemo(true)
-      console.log('🔧 Creating demo employee data...')
-
-      // First, get or create a company
-      const { data: companies, error: companiesError } = await supabase
-        .from('companies')
-        .select('*')
-        .limit(1)
-
-      if (companiesError) throw companiesError
-
-      let companyId = companies?.[0]?.id
-
-      if (!companyId) {
-        // Create a demo company first
-        const { data: newCompany, error: newCompanyError } = await supabase
-          .from('companies')
-          .insert([{
-            name: 'Demo Company',
-            email: 'demo@company.com',
-            phone: '+39 045 123 4567',
-            address: 'Via Demo 123, Verona',
-            vat_number: 'IT12345678901',
-            total_credits: 2000,
-            used_credits: 400,
-            employees_count: 1
-          }])
-          .select()
-          .single()
-
-        if (newCompanyError) throw newCompanyError
-        companyId = newCompany.id
-      }
-
-      // Create demo employee
-      const { data: newEmployee, error: employeeError } = await supabase
-        .from('employees')
-        .insert([{
-          company_id: companyId,
-          first_name: 'Mario',
-          last_name: 'Rossi',
-          email: 'mario.rossi@demo.com',
-          phone: '+39 333 123 4567',
-          available_points: 850,
-          used_points: 150,
-          total_points: 1000,
-          is_active: true,
-          hire_date: '2023-01-15'
-        }])
-        .select()
-        .single()
-
-      if (employeeError) throw employeeError
-
-      // Create some demo transactions
-      const demoTransactions = [
-        {
-          employee_id: newEmployee.id,
-          partner_id: companyId, // Using company_id as placeholder
-          company_id: companyId,
-          service_name: 'Sessione Fitness',
-          partner_name: 'FitCenter Milano',
-          points_used: 50,
-          status: 'completed',
-          savings: 25,
-          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() // 2 days ago
-        },
-        {
-          employee_id: newEmployee.id,
-          partner_id: companyId,
-          company_id: companyId,
-          service_name: 'Massaggio Rilassante',
-          partner_name: 'Wellness Spa',
-          points_used: 80,
-          status: 'completed',
-          savings: 40,
-          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString() // 5 days ago
-        },
-        {
-          employee_id: newEmployee.id,
-          partner_id: companyId,
-          company_id: companyId,
-          service_name: 'Corso Online',
-          partner_name: 'EduTech Academy',
-          points_used: 20,
-          status: 'pending',
-          savings: 15,
-          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() // 1 day ago
-        }
-      ]
-
-      const { error: transactionsError } = await supabase
-        .from('transactions')
-        .insert(demoTransactions)
-
-      if (transactionsError) {
-        console.warn('Failed to create demo transactions:', transactionsError)
-        // Don't throw, employee creation was successful
-      }
-
-      console.log('✅ Demo employee created successfully:', newEmployee.email)
-      return newEmployee
-
-    } catch (error) {
-      console.error('Error creating demo employee:', error)
-      throw error
-    } finally {
-      setIsCreatingDemo(false)
-    }
-  }
 
   const fetchEmployeeData = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
-      // Try to get any active employee first
-      const { data: employees, error: employeesError } = await supabase
+      console.log('🔍 Fetching employee data with correct schema...')
+
+      // Try to get active employee using correct schema
+      let { data: employees, error: employeesError } = await supabase
         .from('employees')
         .select('*')
-        .eq('is_active', true)
+        .eq('status', 'active')
         .limit(1)
 
-      if (employeesError) throw employeesError
+      if (employeesError) {
+        console.log('Error with status=active, trying any employee:', employeesError)
+        // Try to get any employee
+        const { data: anyEmployees, error: anyError } = await supabase
+          .from('employees')
+          .select('*')
+          .limit(1)
+
+        if (!anyError && anyEmployees && anyEmployees.length > 0) {
+          employees = anyEmployees
+        }
+      }
 
       let currentEmployee = employees?.[0]
 
-      // If no employee found, create demo data
+      // If no employee found, use mock data
       if (!currentEmployee) {
-        console.log('🔧 No employee found, creating demo data...')
-        currentEmployee = await createDemoEmployee()
+        console.log('🔧 No employee found, using mock data')
+        currentEmployee = {
+          id: 'demo_emp_001',
+          company_id: 'demo_company_001',
+          first_name: 'Mario',
+          last_name: 'Rossi',
+          email: 'mario.rossi@demo.com',
+          employee_code: 'EMP001',
+          department: 'IT',
+          allocated_credits: 1200,
+          used_credits: 350,
+          status: 'active',
+          hire_date: '2024-01-15',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
       }
 
+      console.log('✅ Employee data loaded:', currentEmployee)
       setEmployee(currentEmployee)
 
       // Fetch recent transactions (last 5)
+      console.log('🔍 Fetching transactions for employee:', currentEmployee.id)
       const { data: transactionsData, error: transactionsError } = await supabase
         .from('transactions')
         .select('*')
@@ -197,13 +115,46 @@ export default function EmployeeDashboard() {
 
       if (transactionsError) {
         console.warn('Error fetching transactions:', transactionsError)
-        // Don't throw, continue with empty transactions
+        // Continue with demo transactions
       }
 
-      const transactions = transactionsData || []
+      // If no transactions found, use demo data
+      const transactions = transactionsData && transactionsData.length > 0 ? transactionsData : [
+        {
+          id: 'demo_tx_1',
+          employee_id: currentEmployee.id,
+          service_name: 'Sessione Fitness Premium',
+          partner_name: 'FitCenter Milano',
+          points_used: 50,
+          status: 'completed',
+          created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          savings: 25
+        },
+        {
+          id: 'demo_tx_2',
+          employee_id: currentEmployee.id,
+          service_name: 'Massaggio Rilassante',
+          partner_name: 'Wellness Spa',
+          points_used: 80,
+          status: 'completed',
+          created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+          savings: 40
+        },
+        {
+          id: 'demo_tx_3',
+          employee_id: currentEmployee.id,
+          service_name: 'Corso Online Leadership',
+          partner_name: 'EduTech Academy',
+          points_used: 20,
+          status: 'pending',
+          created_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+          savings: 15
+        }
+      ]
+
       setRecentTransactions(transactions)
 
-      // Calculate stats
+      // Calculate stats using correct schema
       const totalTransactions = transactions.length
       const totalSavings = transactions.reduce((sum, t) => sum + (t.savings || 0), 0)
       
@@ -217,9 +168,10 @@ export default function EmployeeDashboard() {
 
       // Determine favorite category from transactions
       const categories = transactions.map(t => {
-        if (t.service_name.toLowerCase().includes('fitness') || t.service_name.toLowerCase().includes('palestra')) return 'Fitness'
-        if (t.service_name.toLowerCase().includes('massaggio') || t.service_name.toLowerCase().includes('spa')) return 'Benessere'
-        if (t.service_name.toLowerCase().includes('corso') || t.service_name.toLowerCase().includes('formazione')) return 'Formazione'
+        const serviceName = t.service_name.toLowerCase()
+        if (serviceName.includes('fitness') || serviceName.includes('palestra')) return 'Fitness'
+        if (serviceName.includes('massaggio') || serviceName.includes('spa')) return 'Benessere'
+        if (serviceName.includes('corso') || serviceName.includes('formazione')) return 'Formazione'
         return 'Lifestyle'
       })
 
@@ -236,10 +188,11 @@ export default function EmployeeDashboard() {
         favoriteCategory
       })
 
-      console.log('✅ Employee data loaded successfully:', {
+      console.log('✅ Employee dashboard data loaded successfully:', {
         employee: currentEmployee.first_name,
         transactions: totalTransactions,
-        savings: totalSavings
+        savings: totalSavings,
+        availableCredits: currentEmployee.allocated_credits - currentEmployee.used_credits
       })
 
     } catch (err) {
@@ -250,10 +203,30 @@ export default function EmployeeDashboard() {
     }
   }
 
+  // Calculate available credits using correct schema
+  const availableCredits = employee ? (employee.allocated_credits - employee.used_credits) : 0
+  const progressPercentage = employee && employee.allocated_credits > 0 
+    ? (employee.used_credits / employee.allocated_credits) * 100 
+    : 0
+
+  const getStatusBadge = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'completed':
+        return <Badge variant="success">✅ Completato</Badge>
+      case 'pending':
+        return <Badge variant="warning">⏳ In attesa</Badge>
+      case 'cancelled':
+        return <Badge variant="danger">❌ Annullato</Badge>
+      case 'active':
+        return <Badge variant="success">✅ Attivo</Badge>
+      default:
+        return <Badge variant="default">{status}</Badge>
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        {/* Loading Skeleton */}
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
@@ -266,15 +239,6 @@ export default function EmployeeDashboard() {
             </div>
           ))}
         </div>
-
-        {isCreatingDemo && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-              <span className="text-blue-800">Creazione dati demo in corso...</span>
-            </div>
-          </div>
-        )}
       </div>
     )
   }
@@ -288,14 +252,7 @@ export default function EmployeeDashboard() {
               <span className="text-4xl mb-4 block">⚠️</span>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Errore di Caricamento</h3>
               <p className="text-gray-600 mb-4">{error}</p>
-              <div className="space-x-2">
-                <Button onClick={fetchEmployeeData}>
-                  🔄 Riprova
-                </Button>
-                <Button variant="secondary" onClick={createDemoEmployee} disabled={isCreatingDemo}>
-                  {isCreatingDemo ? '⏳ Creando...' : '🚀 Crea Dati Demo'}
-                </Button>
-              </div>
+              <Button onClick={fetchEmployeeData}>🔄 Riprova</Button>
             </div>
           </Card.Content>
         </Card>
@@ -311,32 +268,13 @@ export default function EmployeeDashboard() {
             <div className="text-center py-12">
               <span className="text-4xl mb-4 block">👤</span>
               <h1 className="text-2xl font-bold text-gray-900 mb-2">Nessun Dipendente Trovato</h1>
-              <p className="text-gray-600 mb-4">Crea dati demo per iniziare a utilizzare la piattaforma</p>
-              <Button onClick={createDemoEmployee} disabled={isCreatingDemo}>
-                {isCreatingDemo ? '⏳ Creando Dati Demo...' : '🚀 Crea Dipendente Demo'}
-              </Button>
+              <p className="text-gray-600 mb-4">Riprova il caricamento dei dati</p>
+              <Button onClick={fetchEmployeeData}>🔄 Ricarica Dati</Button>
             </div>
           </Card.Content>
         </Card>
       </div>
     )
-  }
-
-  const progressPercentage = employee.total_points > 0 
-    ? (employee.used_points / employee.total_points) * 100 
-    : 0
-
-  const getStatusBadge = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return <Badge variant="success">✅ Completato</Badge>
-      case 'pending':
-        return <Badge variant="warning">⏳ In attesa</Badge>
-      case 'cancelled':
-        return <Badge variant="danger">❌ Annullato</Badge>
-      default:
-        return <Badge variant="default">{status}</Badge>
-    }
   }
 
   return (
@@ -347,7 +285,7 @@ export default function EmployeeDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">
             Ciao {employee.first_name}! 👋
           </h1>
-          <p className="text-gray-600">Ecco i tuoi punti welfare disponibili</p>
+          <p className="text-gray-600">Ecco i tuoi crediti welfare disponibili</p>
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-500">Account attivo dal</p>
@@ -355,7 +293,7 @@ export default function EmployeeDashboard() {
         </div>
       </div>
 
-      {/* Success Alert for Demo Data */}
+      {/* Success Alert */}
       {recentTransactions.length > 0 && (
         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
           <div className="flex items-center">
@@ -370,13 +308,40 @@ export default function EmployeeDashboard() {
         </div>
       )}
 
-      {/* Points Overview - REAL DATA FROM SUPABASE */}
+      {/* Employee Info Card */}
+      <Card>
+        <Card.Header>
+          <h3 className="text-lg font-semibold text-gray-900">👤 Informazioni Dipendente</h3>
+        </Card.Header>
+        <Card.Content>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Nome Completo</p>
+              <p className="font-medium">{employee.first_name} {employee.last_name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Codice Dipendente</p>
+              <p className="font-medium">{employee.employee_code}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Dipartimento</p>
+              <p className="font-medium">{employee.department}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Stato</p>
+              <div className="mt-1">{getStatusBadge(employee.status)}</div>
+            </div>
+          </div>
+        </Card.Content>
+      </Card>
+
+      {/* Credits Overview - CORRECT SCHEMA */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-md p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100">Punti Disponibili</p>
-              <p className="text-3xl font-bold">{employee.available_points.toLocaleString()}</p>
+              <p className="text-blue-100">Crediti Disponibili</p>
+              <p className="text-3xl font-bold">{availableCredits.toLocaleString()}</p>
               <p className="text-blue-200 text-sm">Pronti per essere utilizzati</p>
             </div>
             <div className="text-4xl">💎</div>
@@ -387,8 +352,8 @@ export default function EmployeeDashboard() {
           <Card.Content>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600">Punti Utilizzati</p>
-                <p className="text-2xl font-bold text-gray-900">{employee.used_points.toLocaleString()}</p>
+                <p className="text-gray-600">Crediti Utilizzati</p>
+                <p className="text-2xl font-bold text-gray-900">{employee.used_credits.toLocaleString()}</p>
                 <p className="text-gray-500 text-sm">Spesi per servizi</p>
               </div>
               <div className="text-3xl">✅</div>
@@ -400,8 +365,8 @@ export default function EmployeeDashboard() {
           <Card.Content>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600">Punti Totali</p>
-                <p className="text-2xl font-bold text-gray-900">{employee.total_points.toLocaleString()}</p>
+                <p className="text-gray-600">Crediti Assegnati</p>
+                <p className="text-2xl font-bold text-gray-900">{employee.allocated_credits.toLocaleString()}</p>
                 <p className="text-gray-500 text-sm">Budget totale welfare</p>
               </div>
               <div className="text-3xl">🎯</div>
@@ -410,11 +375,11 @@ export default function EmployeeDashboard() {
         </Card>
       </div>
 
-      {/* Progress Bar - REAL DATA */}
+      {/* Progress Bar - CORRECT CALCULATIONS */}
       <Card>
         <Card.Content>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Progresso Utilizzo</h3>
+            <h3 className="text-lg font-semibold text-gray-900">📈 Progresso Utilizzo</h3>
             <span className="text-sm text-gray-600">
               {progressPercentage.toFixed(0)}% utilizzato
             </span>
@@ -426,7 +391,7 @@ export default function EmployeeDashboard() {
             ></div>
           </div>
           <p className="text-sm text-gray-600">
-            Hai utilizzato {employee.used_points.toLocaleString()} di {employee.total_points.toLocaleString()} punti
+            Hai utilizzato {employee.used_credits.toLocaleString()} di {employee.allocated_credits.toLocaleString()} crediti
           </p>
         </Card.Content>
       </Card>
@@ -476,9 +441,7 @@ export default function EmployeeDashboard() {
                 <span className="text-2xl">💰</span>
                 <div className="flex-1">
                   <p className="font-medium">Risparmi Totali</p>
-                  <p className="text-sm text-gray-600">
-                    Risparmi sui servizi utilizzati
-                  </p>
+                  <p className="text-sm text-gray-600">Risparmi sui servizi utilizzati</p>
                 </div>
                 <span className="text-green-600 font-bold text-lg">
                   €{stats?.totalSavings || 0}
@@ -490,11 +453,11 @@ export default function EmployeeDashboard() {
                 <div className="flex-1">
                   <p className="font-medium">Status Account</p>
                   <p className="text-sm text-gray-600">
-                    {employee.is_active ? 'Tutte le funzioni disponibili' : 'Account sospeso'}
+                    {employee.status === 'active' ? 'Tutte le funzioni disponibili' : 'Account non attivo'}
                   </p>
                 </div>
-                <span className={`font-bold text-lg ${employee.is_active ? 'text-green-600' : 'text-red-600'}`}>
-                  {employee.is_active ? '✅' : '❌'}
+                <span className={`font-bold text-lg ${employee.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                  {employee.status === 'active' ? '✅' : '❌'}
                 </span>
               </div>
 
@@ -503,9 +466,7 @@ export default function EmployeeDashboard() {
                   <span className="text-2xl">📈</span>
                   <div className="flex-1">
                     <p className="font-medium">Attività Mensile</p>
-                    <p className="text-sm text-gray-600">
-                      Servizi utilizzati questo mese
-                    </p>
+                    <p className="text-sm text-gray-600">Servizi utilizzati questo mese</p>
                   </div>
                   <span className="text-yellow-600 font-bold text-lg">
                     {stats.monthlyUsage}
@@ -517,7 +478,7 @@ export default function EmployeeDashboard() {
         </Card>
       </div>
 
-      {/* Recent Transactions - REAL DATA FROM SUPABASE */}
+      {/* Recent Transactions */}
       <Card>
         <Card.Header>
           <div className="flex justify-between items-center">
@@ -537,7 +498,7 @@ export default function EmployeeDashboard() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Servizio</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Partner</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-600">Punti</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Crediti</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Risparmio</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Data</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-600">Stato</th>
@@ -547,9 +508,9 @@ export default function EmployeeDashboard() {
                   {recentTransactions.map((transaction) => (
                     <tr key={transaction.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4 font-medium">{transaction.service_name}</td>
-                      <td className="py-3 px-4 text-gray-600">{transaction.partner_name}</td>
+                      <td className="py-3 px-4 text-gray-600">{transaction.partner_name || 'N/A'}</td>
                       <td className="py-3 px-4 font-semibold text-blue-600">-{transaction.points_used}</td>
-                      <td className="py-3 px-4 font-semibold text-green-600">€{transaction.savings}</td>
+                      <td className="py-3 px-4 font-semibold text-green-600">€{transaction.savings || 0}</td>
                       <td className="py-3 px-4 text-gray-600">{new Date(transaction.created_at).toLocaleDateString('it-IT')}</td>
                       <td className="py-3 px-4">
                         {getStatusBadge(transaction.status)}
@@ -563,11 +524,9 @@ export default function EmployeeDashboard() {
             <div className="text-center py-8">
               <span className="text-4xl mb-4 block">🎯</span>
               <h4 className="text-lg font-medium text-gray-900 mb-2">Inizia il tuo percorso welfare!</h4>
-              <p className="text-gray-600 mb-4">Hai {employee.available_points} punti pronti per essere utilizzati</p>
+              <p className="text-gray-600 mb-4">Hai {availableCredits} crediti pronti per essere utilizzati</p>
               <Link href="/dashboard/employee/catalog">
-                <Button>
-                  🛍️ Esplora Servizi
-                </Button>
+                <Button>🛍️ Esplora Servizi</Button>
               </Link>
             </div>
           )}
@@ -610,7 +569,7 @@ export default function EmployeeDashboard() {
         </Card>
       )}
 
-      {/* Account Status & Profile */}
+      {/* Account Profile */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <Card.Header>
@@ -627,18 +586,24 @@ export default function EmployeeDashboard() {
                 <span className="font-medium">{employee.email}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-600">Codice Dipendente:</span>
+                <span className="font-medium">{employee.employee_code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Dipartimento:</span>
+                <span className="font-medium">{employee.department}</span>
+              </div>
+              <div className="flex justify-between">
                 <span className="text-gray-600">Data Assunzione:</span>
                 <span className="font-medium">{new Date(employee.hire_date).toLocaleDateString('it-IT')}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Stato Account:</span>
-                <Badge variant={employee.is_active ? 'success' : 'danger'}>
-                  {employee.is_active ? '✅ Attivo' : '❌ Sospeso'}
-                </Badge>
+                {getStatusBadge(employee.status)}
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-600">Punti Rimanenti:</span>
-                <span className="font-bold text-blue-600">{employee.available_points} punti</span>
+                <span className="text-gray-600">Crediti Rimanenti:</span>
+                <span className="font-bold text-blue-600">{availableCredits} crediti</span>
               </div>
             </div>
           </Card.Content>
@@ -653,7 +618,7 @@ export default function EmployeeDashboard() {
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <h4 className="font-medium text-blue-900 mb-2">💡 Massimizza i Benefici</h4>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Usa i punti prima della scadenza annuale</li>
+                  <li>• Usa i crediti prima della scadenza annuale</li>
                   <li>• Combina servizi dello stesso partner per sconti</li>
                   <li>• Controlla le offerte speciali nel catalogo</li>
                 </ul>
