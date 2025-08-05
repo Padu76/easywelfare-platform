@@ -133,17 +133,20 @@ export default function EmployeeQRPage() {
 
       if (historyError) throw historyError
 
-      const formattedHistory = (historyData || []).map(tx => ({
-        id: tx.id,
-        service_name: tx.service_name,
-        partner_name: Array.isArray(tx.partners) 
-          ? tx.partners[0]?.business_name || 'Partner Sconosciuto'
-          : tx.partners?.business_name || 'Partner Sconosciuto',
-        points_used: tx.points_used,
-        created_at: tx.created_at,
-        status: tx.status,
-        qr_code_data: tx.qr_code_data
-      }))
+      const formattedHistory = (historyData || []).map(tx => {
+        const partners = tx.partners as any
+        return {
+          id: tx.id,
+          service_name: tx.service_name,
+          partner_name: Array.isArray(partners) 
+            ? partners[0]?.business_name || 'Partner Sconosciuto'
+            : partners?.business_name || 'Partner Sconosciuto',
+          points_used: tx.points_used,
+          created_at: tx.created_at,
+          status: tx.status,
+          qr_code_data: tx.qr_code_data
+        }
+      })
 
       setQRHistory(formattedHistory)
     } catch (err) {
