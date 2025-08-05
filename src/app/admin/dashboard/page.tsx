@@ -16,74 +16,75 @@ interface PlatformStats {
   totalTransactions: number
   platformRevenue: number
   monthlyGrowth: number
-  systemHealth: string
 }
 
-interface FraudAlert {
+interface Company {
   id: string
-  type: string
-  severity: 'low' | 'medium' | 'high' | 'critical'
-  title: string
-  description: string
-  risk_score: number
-  detected_at: string
-  status: 'active' | 'investigating' | 'resolved' | 'false_positive'
-  actions_suggested: string[]
+  name: string
+  email: string
+  total_credits: number
+  used_credits: number
+  subscription_status: string
+  created_at: string
 }
 
-interface SecurityMetrics {
-  totalAlertsToday: number
-  criticalAlerts: number
-  falsePositiveRate: number
-  avgRiskScore: number
-  transactionsBlocked: number
-  potentialSavings: number
+interface Partner {
+  id: string
+  business_name: string
+  category: string
+  is_active: boolean
+  approval_status: string
+  created_at: string
+}
+
+interface Transaction {
+  id: string
+  service_name: string
+  points_used: number
+  status: string
+  created_at: string
 }
 
 export default function AdminDashboard() {
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null)
-  const [fraudAlerts, setFraudAlerts] = useState<FraudAlert[]>([])
-  const [securityMetrics, setSecurityMetrics] = useState<SecurityMetrics | null>(null)
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [partners, setPartners] = useState<Partner[]>([])
+  const [transactions, setTransactions] = useState<Transaction[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [selectedTab, setSelectedTab] = useState<'overview' | 'companies' | 'partners' | 'transactions' | 'security' | 'analytics' | 'settings'>('overview')
-  const [autoRefresh, setAutoRefresh] = useState(true)
-  const [aiAnalyzing, setAIAnalyzing] = useState(false)
+  const [selectedTab, setSelectedTab] = useState<'overview' | 'companies' | 'partners' | 'transactions'>('overview')
 
   useEffect(() => {
     loadPlatformData()
-    runFraudDetectionAI()
-    
-    const interval = autoRefresh ? setInterval(() => {
-      loadPlatformData()
-      runFraudDetectionAI()
-    }, 30000) : undefined
-
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [autoRefresh])
+  }, [])
 
   const loadPlatformData = async () => {
     try {
       setError(null)
+      setLoading(true)
 
-      const [companies, partners, employees, transactions] = await Promise.all([
+      const [companiesRes, partnersRes, employeesRes, transactionsRes] = await Promise.all([
         supabase.from('companies').select('*'),
         supabase.from('partners').select('*'),
         supabase.from('employees').select('*'),
-        supabase.from('transactions').select('*')
+        supabase.from('transactions').select('*').limit(50)
       ])
 
-      const totalCompanies = companies.data?.length || 0
-      const activeCompanies = companies.data?.filter(c => c.total_credits > 0).length || 0
-      const totalPartners = partners.data?.length || 0
-      const activePartners = partners.data?.filter(p => p.is_active).length || 0
-      const totalEmployees = employees.data?.length || 0
-      const activeEmployees = employees.data?.filter(e => e.is_active).length || 0
-      const totalTransactions = transactions.data?.length || 0
+      const companiesData = companiesRes.data || []
+      const partnersData = partnersRes.data || []
+      const employeesData = employeesRes.data || []
+      const transactionsData = transactionsRes.data || []
 
-      const platformRevenue = (transactions.data || [])
+      // Calculate platform stats
+      const totalCompanies = companiesData.length
+      const activeCompanies = companiesData.filter(c => c.total_credits > 0).length
+      const totalPartners = partnersData.length
+      const activePartners = partnersData.filter(p => p.is_active).length
+      const totalEmployees = employeesData.length
+      const activeEmployees = employeesData.filter(e => e.is_active).length
+      const totalTransactions = transactionsData.length
+
+      const platformRevenue = transactionsData
         .filter(t => t.status === 'completed')
         .reduce((sum, t) => sum + (t.points_used * 0.15), 0)
 
@@ -96,9 +97,12 @@ export default function AdminDashboard() {
         activeEmployees,
         totalTransactions,
         platformRevenue: Math.round(platformRevenue),
-        monthlyGrowth: 12.5,
-        systemHealth: 'excellent'
+        monthlyGrowth: 12.5
       })
+
+      setCompanies(companiesData)
+      setPartners(partnersData)
+      setTransactions(transactionsData)
 
     } catch (err) {
       console.error('Error loading platform data:', err)
@@ -108,88 +112,24 @@ export default function AdminDashboard() {
     }
   }
 
-  const runFraudDetectionAI = async () => {
-    try {
-      setAIAnalyzing(true)
-      
-      // Simulate AI analysis
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      const alerts: FraudAlert[] = [
-        {
-          id: 'alert_1',
-          type: 'velocity_anomaly',
-          severity: 'medium',
-          title: 'Volume Transazioni Anomalo',
-          description: 'Rilevate 15 transazioni nelle ultime 24h, 50% sopra la media normale.',
-          risk_score: 65,
-          detected_at: new Date().toISOString(),
-          status: 'active',
-          actions_suggested: ['Verifica pattern temporali', 'Controlla IP addresses']
-        },
-        {
-          id: 'alert_2',
-          type: 'suspicious_pattern',
-          severity: 'high',
-          title: 'Pattern Comportamentali Sospetti',
-          description: '3 transazioni con score di rischio elevato rilevate.',
-          risk_score: 85,
-          detected_at: new Date().toISOString(),
-          status: 'active',
-          actions_suggested: ['Blocca transazioni ad alto rischio', 'Contatta dipendenti coinvolti']
-        }
-      ]
-
-      setFraudAlerts(alerts)
-
-      setSecurityMetrics({
-        totalAlertsToday: alerts.length,
-        criticalAlerts: alerts.filter(a => a.severity === 'critical').length,
-        falsePositiveRate: 8.5,
-        avgRiskScore: 45.2,
-        transactionsBlocked: 2,
-        potentialSavings: 1250
-      })
-
-    } catch (error) {
-      console.error('Error in fraud detection AI:', error)
-    } finally {
-      setAIAnalyzing(false)
-    }
-  }
-
-  const handleResolveAlert = (alertId: string) => {
-    setFraudAlerts(prev => prev.map(alert => 
-      alert.id === alertId 
-        ? { ...alert, status: 'resolved' as const }
-        : alert
-    ))
-  }
-
-  const handleInvestigateAlert = (alertId: string) => {
-    setFraudAlerts(prev => prev.map(alert => 
-      alert.id === alertId 
-        ? { ...alert, status: 'investigating' as const }
-        : alert
-    ))
-  }
-
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return <Badge variant="danger">🚨 Critico</Badge>
-      case 'high':
-        return <Badge variant="danger">❗ Alto</Badge>
-      case 'medium':
-        return <Badge variant="secondary">⚠️ Medio</Badge>
-      case 'low':
-        return <Badge variant="secondary">ℹ️ Basso</Badge>
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge variant="success">Attivo</Badge>
+      case 'suspended':
+        return <Badge variant="danger">Sospeso</Badge>
+      case 'pending':
+        return <Badge variant="warning">In Attesa</Badge>
+      case 'approved':
+        return <Badge variant="success">Approvato</Badge>
+      case 'completed':
+        return <Badge variant="success">Completato</Badge>
       default:
-        return <Badge variant="secondary">{severity}</Badge>
+        return <Badge variant="default">{status}</Badge>
     }
   }
 
-  if (loading && !platformStats) {
+  if (loading) {
     return (
       <div className="space-y-6">
         <div>
@@ -231,195 +171,33 @@ export default function AdminDashboard() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">🎛️ EasyWelfare - Admin Dashboard</h1>
-          <p className="text-gray-600">Controllo completo della piattaforma welfare</p>
+          <p className="text-gray-600">Controllo piattaforma welfare</p>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center space-x-2">
-            <div className={`w-3 h-3 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-            <span className="text-sm text-gray-600">
-              {autoRefresh ? 'Live' : 'Paused'}
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className={`w-3 h-3 rounded-full ${aiAnalyzing ? 'bg-purple-500 animate-pulse' : 'bg-purple-300'}`}></div>
-            <span className="text-sm text-gray-600">
-              🛡️ {aiAnalyzing ? 'AI Analyzing' : 'AI Ready'}
-            </span>
-          </div>
-          <Button
-            variant={autoRefresh ? 'secondary' : 'primary'}
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            size="sm"
-          >
-            {autoRefresh ? '⏸️ Pausa' : '▶️ Live'}
-          </Button>
-          <Button
-            onClick={loadPlatformData}
-            variant="secondary"
-            size="sm"
-          >
-            🔄 Aggiorna
-          </Button>
-        </div>
-      </div>
-
-      {/* Critical Security Alerts */}
-      {fraudAlerts.filter(a => a.severity === 'critical' && a.status === 'active').length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <span className="text-2xl mr-3">🚨</span>
-            <div className="flex-1">
-              <h3 className="text-red-800 font-bold">ALERT SICUREZZA CRITICO!</h3>
-              <p className="text-red-700 text-sm mt-1">
-                {fraudAlerts.filter(a => a.severity === 'critical').length} alert critici rilevati. Azione immediata richiesta.
-              </p>
-            </div>
-            <Button 
-              variant="danger" 
-              onClick={() => setSelectedTab('security')}
-            >
-              🛡️ Vai a Security
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* AI Fraud Detection Center */}
-      <div className="bg-gradient-to-r from-red-50 to-purple-50 rounded-lg p-6 border-2 border-purple-200">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center">
-              <span className="text-white text-xl">🛡️</span>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">AI Fraud Detection Center</h3>
-              <p className="text-purple-700 text-sm">Sistema di sicurezza intelligente real-time</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            {aiAnalyzing && (
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                <span className="text-purple-600 text-sm">Analisi AI in corso...</span>
-              </div>
-            )}
-            <Button 
-              variant="secondary" 
-              onClick={runFraudDetectionAI}
-              disabled={aiAnalyzing}
-            >
-              🔍 Scan Completo
-            </Button>
-          </div>
-        </div>
-
-        {/* Security Metrics */}
-        {securityMetrics && (
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Alert Oggi</p>
-              <p className="text-xl font-bold text-red-600">{securityMetrics.totalAlertsToday}</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Critici</p>
-              <p className="text-xl font-bold text-red-700">{securityMetrics.criticalAlerts}</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Risk Score Avg</p>
-              <p className="text-xl font-bold text-yellow-600">{securityMetrics.avgRiskScore.toFixed(1)}</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Bloccate</p>
-              <p className="text-xl font-bold text-green-600">{securityMetrics.transactionsBlocked}</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">False Positive</p>
-              <p className="text-xl font-bold text-blue-600">{securityMetrics.falsePositiveRate}%</p>
-            </div>
-            <div className="bg-white rounded-lg p-3 text-center">
-              <p className="text-sm text-gray-600">Risparmi</p>
-              <p className="text-xl font-bold text-purple-600">€{securityMetrics.potentialSavings}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Priority Alerts */}
-        <div className="bg-white rounded-lg p-4">
-          <h4 className="font-semibold text-gray-900 mb-3">🚨 Alert Prioritari</h4>
-          <div className="space-y-2">
-            {fraudAlerts.filter(a => a.status === 'active').slice(0, 3).map((alert) => (
-              <div 
-                key={alert.id}
-                className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${
-                  alert.severity === 'critical' ? 'border-red-500 bg-red-50' :
-                  alert.severity === 'high' ? 'border-orange-500 bg-orange-50' :
-                  alert.severity === 'medium' ? 'border-yellow-500 bg-yellow-50' : 'border-blue-500 bg-blue-50'
-                }`}
-              >
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h5 className="font-medium text-gray-900">{alert.title}</h5>
-                    {getSeverityBadge(alert.severity)}
-                    <span className="text-sm font-bold text-purple-600">Score: {alert.risk_score}</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{alert.description}</p>
-                </div>
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="secondary" 
-                    size="sm"
-                    onClick={() => handleInvestigateAlert(alert.id)}
-                  >
-                    🔍 Investiga
-                  </Button>
-                  <Button 
-                    variant="success" 
-                    size="sm"
-                    onClick={() => handleResolveAlert(alert.id)}
-                  >
-                    ✅ Risolvi
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {fraudAlerts.filter(a => a.status === 'active').length === 0 && (
-              <div className="text-center py-4 text-green-700">
-                <span className="text-2xl block mb-2">✅</span>
-                <p className="font-medium">Nessun alert attivo - Sistema sicuro</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <Button onClick={loadPlatformData} variant="secondary" size="sm">
+          🔄 Aggiorna
+        </Button>
       </div>
 
       {/* Tab Navigation */}
       <Card>
         <Card.Content>
-          <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg overflow-x-auto">
+          <div className="flex space-x-1 p-1 bg-gray-100 rounded-lg">
             {[
               { id: 'overview', label: '📊 Overview' },
               { id: 'companies', label: '🏢 Aziende' },
               { id: 'partners', label: '🏪 Partner' },
-              { id: 'transactions', label: '💳 Transazioni Live' },
-              { id: 'security', label: '🛡️ AI Security', badge: fraudAlerts.filter(a => a.status === 'active').length },
-              { id: 'analytics', label: '📈 Analytics' },
-              { id: 'settings', label: '⚙️ Settings' }
+              { id: 'transactions', label: '💳 Transazioni' }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setSelectedTab(tab.id as any)}
-                className={`flex-shrink-0 py-2 px-4 rounded-md text-sm font-medium transition-colors relative ${
+                className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                   selectedTab === tab.id
                     ? 'bg-white text-blue-600 shadow-sm'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
                 {tab.label}
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {tab.badge}
-                  </span>
-                )}
               </button>
             ))}
           </div>
@@ -435,9 +213,9 @@ export default function AdminDashboard() {
               <Card.Content>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Aziende Totali</p>
+                    <p className="text-sm font-medium text-gray-600">Aziende</p>
                     <p className="text-2xl font-bold text-blue-600">{platformStats.totalCompanies}</p>
-                    <p className="text-xs text-green-600">+{platformStats.monthlyGrowth}% questo mese</p>
+                    <p className="text-xs text-green-600">+{platformStats.monthlyGrowth}% mese</p>
                   </div>
                   <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                     <span className="text-blue-600 text-xl">🏢</span>
@@ -450,7 +228,7 @@ export default function AdminDashboard() {
               <Card.Content>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Partner Attivi</p>
+                    <p className="text-sm font-medium text-gray-600">Partner</p>
                     <p className="text-2xl font-bold text-green-600">{platformStats.activePartners}</p>
                     <p className="text-xs text-gray-500">di {platformStats.totalPartners} totali</p>
                   </div>
@@ -465,7 +243,7 @@ export default function AdminDashboard() {
               <Card.Content>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Dipendenti Attivi</p>
+                    <p className="text-sm font-medium text-gray-600">Dipendenti</p>
                     <p className="text-2xl font-bold text-purple-600">{platformStats.activeEmployees}</p>
                     <p className="text-xs text-gray-500">di {platformStats.totalEmployees} registrati</p>
                   </div>
@@ -480,7 +258,7 @@ export default function AdminDashboard() {
               <Card.Content>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Revenue Piattaforma</p>
+                    <p className="text-sm font-medium text-gray-600">Revenue</p>
                     <p className="text-2xl font-bold text-yellow-600">€{platformStats.platformRevenue.toLocaleString()}</p>
                     <p className="text-xs text-green-600">Commissioni 15%</p>
                   </div>
@@ -495,20 +273,18 @@ export default function AdminDashboard() {
           {/* Quick Stats */}
           <Card>
             <Card.Header>
-              <h3 className="text-lg font-semibold text-gray-900">📊 Statistiche Rapide</h3>
+              <h3 className="text-lg font-semibold text-gray-900">📊 Statistiche</h3>
             </Card.Header>
             <Card.Content>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
-                  <span className="font-medium">Transazioni Totali</span>
-                  <span className="font-bold text-blue-600">{platformStats.totalTransactions.toLocaleString()}</span>
+                  <span className="font-medium">Transazioni</span>
+                  <span className="font-bold text-blue-600">{platformStats.totalTransactions}</span>
                 </div>
-                
                 <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                  <span className="font-medium">Crescita Mensile</span>
+                  <span className="font-medium">Crescita</span>
                   <span className="font-bold text-green-600">+{platformStats.monthlyGrowth}%</span>
                 </div>
-                
                 <div className="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
                   <span className="font-medium">Sistema</span>
                   <Badge variant="success">🟢 Operativo</Badge>
@@ -519,24 +295,131 @@ export default function AdminDashboard() {
         </>
       )}
 
-      {/* Footer Status */}
+      {/* Companies Tab */}
+      {selectedTab === 'companies' && (
+        <Card>
+          <Card.Header>
+            <h3 className="text-lg font-semibold text-gray-900">🏢 Aziende ({companies.length})</h3>
+          </Card.Header>
+          <Card.Content>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Nome</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Email</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Crediti</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Stato</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {companies.map((company) => (
+                    <tr key={company.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium">{company.name}</td>
+                      <td className="py-3 px-4 text-gray-600">{company.email}</td>
+                      <td className="py-3 px-4">
+                        <span className="font-semibold text-blue-600">€{company.total_credits.toLocaleString()}</span>
+                        <br />
+                        <span className="text-xs text-gray-500">Usati: €{company.used_credits.toLocaleString()}</span>
+                      </td>
+                      <td className="py-3 px-4">{getStatusBadge(company.subscription_status)}</td>
+                      <td className="py-3 px-4 text-gray-500 text-sm">
+                        {new Date(company.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Partners Tab */}
+      {selectedTab === 'partners' && (
+        <Card>
+          <Card.Header>
+            <h3 className="text-lg font-semibold text-gray-900">🏪 Partner ({partners.length})</h3>
+          </Card.Header>
+          <Card.Content>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Nome</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Categoria</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Stato</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Approvazione</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {partners.map((partner) => (
+                    <tr key={partner.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium">{partner.business_name}</td>
+                      <td className="py-3 px-4">{partner.category}</td>
+                      <td className="py-3 px-4">{getStatusBadge(partner.is_active ? 'active' : 'suspended')}</td>
+                      <td className="py-3 px-4">{getStatusBadge(partner.approval_status)}</td>
+                      <td className="py-3 px-4 text-gray-500 text-sm">
+                        {new Date(partner.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Transactions Tab */}
+      {selectedTab === 'transactions' && (
+        <Card>
+          <Card.Header>
+            <h3 className="text-lg font-semibold text-gray-900">💳 Transazioni ({transactions.length})</h3>
+          </Card.Header>
+          <Card.Content>
+            <div className="overflow-x-auto">
+              <table className="min-w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Servizio</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Punti</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Commissione</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Stato</th>
+                    <th className="text-left py-3 px-4 font-medium text-gray-600">Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium">{transaction.service_name}</td>
+                      <td className="py-3 px-4 font-semibold text-blue-600">{transaction.points_used}</td>
+                      <td className="py-3 px-4 font-semibold text-green-600">
+                        €{Math.round(transaction.points_used * 0.15)}
+                      </td>
+                      <td className="py-3 px-4">{getStatusBadge(transaction.status)}</td>
+                      <td className="py-3 px-4 text-gray-500 text-sm">
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Footer */}
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">
-              <strong>Ultimo aggiornamento:</strong> {new Date().toLocaleString('it-IT')}
-            </span>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-sm text-gray-600">Sistema operativo</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
-              <span className="text-sm text-gray-600">🛡️ AI Security Active</span>
-            </div>
-          </div>
+          <span className="text-sm text-gray-600">
+            <strong>Ultimo aggiornamento:</strong> {new Date().toLocaleString('it-IT')}
+          </span>
           <div className="text-sm text-gray-600">
-            🎛️ <strong>EasyWelfare Admin v2.0</strong> - AI-Powered Platform Control
+            🎛️ <strong>EasyWelfare Admin</strong> - Platform Control
           </div>
         </div>
       </div>
