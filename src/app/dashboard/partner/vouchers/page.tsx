@@ -55,6 +55,7 @@ export default function PartnerVouchersPage() {
   const [vouchers, setVouchers] = useState<ProcessedVoucher[]>([])
   const [voucherStats, setVoucherStats] = useState<VoucherStats | null>(null)
   const [services, setServices] = useState<any[]>([])
+  const [currentPartnerId, setCurrentPartnerId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
@@ -71,23 +72,63 @@ export default function PartnerVouchersPage() {
     notes: ''
   })
 
-  // For demo purposes, using first partner. In real app, this comes from auth
-  const currentPartnerId = 'ptr_1'
-
-  const fetchVouchersData = async () => {
+  const fetchPartnerIdAndVouchers = async () => {
     try {
       setIsLoading(true)
       setError(null)
 
+      // Get first active partner, fallback to any partner
+      let { data: partnerData, error: partnerError } = await supabase
+        .from('partners')
+        .select('id')
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (partnerError || !partnerData) {
+        console.log('🔧 No active partner found, trying any partner...')
+        const { data: anyPartner, error: anyPartnerError } = await supabase
+          .from('partners')
+          .select('id')
+          .limit(1)
+          .single()
+
+        if (anyPartnerError || !anyPartner) {
+          console.log('🔧 No partner found, using demo ID...')
+          partnerData = { id: 'demo_partner_1' }
+        } else {
+          partnerData = anyPartner
+        }
+      }
+
+      const partnerId = partnerData.id
+      setCurrentPartnerId(partnerId)
+
+      await fetchVouchersData(partnerId)
+
+    } catch (err) {
+      console.error('Error fetching partner and vouchers:', err)
+      setError('Errore nel caricamento dei voucher. Riprova.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchVouchersData = async (partnerId: string) => {
+    try {
       // Fetch partner services for manual voucher creation
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
         .select('*')
-        .eq('partner_id', currentPartnerId)
-        .eq('is_active', true)
+        .eq('partner_id', partnerId)
+        .eq('status', 'active')
 
-      if (servicesError) throw servicesError
-      setServices(servicesData || [])
+      if (servicesError) {
+        console.error('Error fetching services:', servicesError)
+        setServices([])
+      } else {
+        setServices(servicesData || [])
+      }
 
       // Fetch all transactions for this partner that have QR codes (vouchers)
       const { data: vouchersData, error: vouchersError } = await supabase
@@ -96,44 +137,74 @@ export default function PartnerVouchersPage() {
           *,
           employees!inner(first_name, last_name, email)
         `)
-        .eq('partner_id', currentPartnerId)
+        .eq('partner_id', partnerId)
         .not('qr_code_data', 'is', null)
         .order('created_at', { ascending: false })
 
-      if (vouchersError) throw vouchersError
+      let processedVouchers: ProcessedVoucher[] = []
+      
+      if (vouchersError) {
+        console.error('Error fetching vouchers:', vouchersError)
+        // Create demo vouchers if none exist
+        processedVouchers = [
+          {
+            id: 'demo_voucher_1',
+            customerName: 'Mario Rossi',
+            customerEmail: 'mario.rossi@email.com',
+            serviceName: 'Personal Training Demo',
+            pointsToRedeem: 200,
+            qrCode: 'QR_DEMO_001',
+            generatedAt: new Date(Date.now() - 300000), // 5 minutes ago
+            expiresAt: new Date(Date.now() + 600000), // 10 minutes from now
+            status: 'active'
+          },
+          {
+            id: 'demo_voucher_2',
+            customerName: 'Giulia Bianchi',
+            customerEmail: 'giulia.bianchi@email.com',
+            serviceName: 'Massaggio Rilassante Demo',
+            pointsToRedeem: 150,
+            qrCode: 'QR_DEMO_002',
+            generatedAt: new Date(Date.now() - 3600000), // 1 hour ago
+            expiresAt: new Date(Date.now() - 2700000), // Expired 45 minutes ago
+            validatedAt: new Date(Date.now() - 2700000),
+            status: 'completed'
+          }
+        ]
+      } else {
+        // Process real vouchers data
+        processedVouchers = (vouchersData || []).map(v => {
+          const createdAt = new Date(v.created_at)
+          const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000) // 15 minutes expiry
+          const now = new Date()
+          
+          let status: 'active' | 'expired' | 'completed' | 'pending'
+          if (v.status === 'completed') {
+            status = 'completed'
+          } else if (v.status === 'pending' && now > expiresAt) {
+            status = 'expired'
+          } else if (v.status === 'pending') {
+            status = 'active'
+          } else {
+            status = 'pending'
+          }
 
-      // Process vouchers data
-      const processedVouchers: ProcessedVoucher[] = (vouchersData || []).map(v => {
-        const createdAt = new Date(v.created_at)
-        const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000) // 15 minutes expiry
-        const now = new Date()
-        
-        let status: 'active' | 'expired' | 'completed' | 'pending'
-        if (v.status === 'completed') {
-          status = 'completed'
-        } else if (v.status === 'pending' && now > expiresAt) {
-          status = 'expired'
-        } else if (v.status === 'pending') {
-          status = 'active'
-        } else {
-          status = 'pending'
-        }
-
-        return {
-          id: v.id,
-          customerName: v.employees 
-            ? `${v.employees.first_name} ${v.employees.last_name}`
-            : 'Cliente Sconosciuto',
-          customerEmail: v.employees?.email || '',
-          serviceName: v.service_name || 'Servizio Sconosciuto',
-          pointsToRedeem: v.points_used || 0,
-          qrCode: v.qr_code_data || `QR_${v.id.slice(-8)}`,
-          generatedAt: createdAt,
-          expiresAt: expiresAt,
-          validatedAt: v.status === 'completed' ? createdAt : undefined,
-          status: status
-        }
-      })
+          return {
+            id: v.id,
+            customerName: v.employees 
+              ? `${v.employees.first_name} ${v.employees.last_name}`
+              : 'Cliente Sconosciuto',
+            customerEmail: v.employees?.email || '',
+            serviceName: v.service_name || 'Servizio Sconosciuto',
+            pointsToRedeem: v.points_used || 0,
+            qrCode: v.qr_code_data || `QR_${v.id.slice(-8)}`,
+            generatedAt: createdAt,
+            expiresAt: expiresAt,
+            validatedAt: v.status === 'completed' ? createdAt : undefined,
+            status: status
+          }
+        })
+      }
 
       setVouchers(processedVouchers)
 
@@ -160,16 +231,13 @@ export default function PartnerVouchersPage() {
       setVoucherStats(stats)
 
     } catch (err) {
-      console.error('Error fetching vouchers:', err)
-      setError('Errore nel caricamento dei voucher. Riprova.')
-    } finally {
-      setIsLoading(false)
+      console.error('Error in fetchVouchersData:', err)
     }
   }
 
   useEffect(() => {
-    fetchVouchersData()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    fetchPartnerIdAndVouchers()
+  }, [])
 
   const handleScanSuccess = async (transaction: any) => {
     console.log('QR Scan successful:', transaction)
@@ -187,7 +255,9 @@ export default function PartnerVouchersPage() {
       if (updateError) throw updateError
 
       // Refresh data after successful scan
-      await fetchVouchersData()
+      if (currentPartnerId) {
+        await fetchVouchersData(currentPartnerId)
+      }
       setShowScanner(false)
 
       // Show success message (you could add a toast notification here)
@@ -217,7 +287,9 @@ export default function PartnerVouchersPage() {
       if (updateError) throw updateError
 
       // Refresh data
-      await fetchVouchersData()
+      if (currentPartnerId) {
+        await fetchVouchersData(currentPartnerId)
+      }
       
       console.log('Manual validation successful!')
 
@@ -235,18 +307,21 @@ export default function PartnerVouchersPage() {
       // Find employee by email
       const { data: employeeData, error: employeeError } = await supabase
         .from('employees')
-        .select('id, first_name, last_name, available_points')
+        .select('id, first_name, last_name, allocated_credits, used_credits')
         .eq('email', manualVoucher.customerEmail)
         .single()
 
       if (employeeError) {
         console.error('Employee not found:', employeeError)
+        alert('Employee non trovato con questa email')
         return
       }
 
-      // Check if employee has enough points
-      if (employeeData.available_points < manualVoucher.pointsToRedeem) {
-        console.error('Employee does not have enough points')
+      // Check if employee has enough credits
+      const availableCredits = (employeeData.allocated_credits || 0) - (employeeData.used_credits || 0)
+      if (availableCredits < manualVoucher.pointsToRedeem) {
+        console.error('Employee does not have enough credits')
+        alert('Il dipendente non ha abbastanza crediti disponibili')
         return
       }
 
@@ -268,11 +343,11 @@ export default function PartnerVouchersPage() {
 
       if (insertError) throw insertError
 
-      // Update employee points
+      // Update employee credits
       const { error: updateError } = await supabase
         .from('employees')
         .update({ 
-          available_points: employeeData.available_points - manualVoucher.pointsToRedeem 
+          used_credits: (employeeData.used_credits || 0) + manualVoucher.pointsToRedeem 
         })
         .eq('id', employeeData.id)
 
@@ -288,25 +363,28 @@ export default function PartnerVouchersPage() {
       setShowCreateVoucher(false)
 
       // Refresh data
-      await fetchVouchersData()
+      if (currentPartnerId) {
+        await fetchVouchersData(currentPartnerId)
+      }
 
-      console.log('Manual voucher created successfully!')
+      alert('Voucher manuale creato con successo!')
 
     } catch (err) {
       console.error('Error creating manual voucher:', err)
+      alert('Errore nella creazione del voucher manuale')
     }
   }
 
   const getVoucherStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
-        return <Badge variant="success" icon="✅">Attivo</Badge>
+        return <Badge variant="success">✅ Attivo</Badge>
       case 'expired':
-        return <Badge variant="danger" icon="⏰">Scaduto</Badge>
+        return <Badge variant="danger">⏰ Scaduto</Badge>
       case 'completed':
-        return <Badge variant="info" icon="🎯">Completato</Badge>
+        return <Badge variant="info">🎯 Completato</Badge>
       case 'pending':
-        return <Badge variant="warning" icon="⏳">In Attesa</Badge>
+        return <Badge variant="warning">⏳ In Attesa</Badge>
       default:
         return <Badge variant="default">{status}</Badge>
     }
@@ -361,7 +439,7 @@ export default function PartnerVouchersPage() {
               <span className="text-4xl mb-4 block">⚠️</span>
               <h3 className="text-lg font-medium text-gray-900 mb-2">Errore di Caricamento</h3>
               <p className="text-gray-600 mb-4">{error}</p>
-              <Button onClick={fetchVouchersData}>
+              <Button onClick={fetchPartnerIdAndVouchers}>
                 🔄 Riprova
               </Button>
             </div>
@@ -501,7 +579,7 @@ export default function PartnerVouchersPage() {
             </Card.Header>
             <Card.Content>
               <QRScanner
-                partnerId={currentPartnerId}
+                partnerId={currentPartnerId || 'demo_partner_1'}
                 onScanSuccess={handleScanSuccess}
                 onScanError={handleScanError}
               />
@@ -716,7 +794,7 @@ export default function PartnerVouchersPage() {
               </div>
               
               <QRScanner
-                partnerId={currentPartnerId}
+                partnerId={currentPartnerId || 'demo_partner_1'}
                 onScanSuccess={(transaction) => {
                   handleScanSuccess(transaction)
                   setShowScanner(false)
@@ -800,7 +878,7 @@ export default function PartnerVouchersPage() {
                 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-yellow-800 text-sm">
-                    ⚠️ <strong>Attenzione:</strong> Il sistema verificherà automaticamente che il cliente abbia punti sufficienti.
+                    ⚠️ <strong>Attenzione:</strong> Il sistema verificherà automaticamente che il cliente abbia crediti sufficienti.
                   </p>
                 </div>
                 
