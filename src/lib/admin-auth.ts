@@ -1,6 +1,4 @@
-'use client'
-
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, ReactNode, createElement } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface AdminUser {
@@ -274,11 +272,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user
   }
 
-  return (
-    <AdminAuthContext.Provider value={value}>
-      {children}
-    </AdminAuthContext.Provider>
-  )
+  // Use createElement instead of JSX
+  return createElement(AdminAuthContext.Provider, { value }, children)
 }
 
 export function useAdminAuth(): AdminAuthContextType {
@@ -293,13 +288,18 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAdminAuth()
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">🔍 Verifica autenticazione admin...</p>
-        </div>
-      </div>
+    // Use createElement instead of JSX
+    return createElement(
+      'div',
+      { className: 'min-h-screen flex items-center justify-center bg-gray-50' },
+      createElement(
+        'div',
+        { className: 'text-center' },
+        createElement('div', { 
+          className: 'animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4' 
+        }),
+        createElement('p', { className: 'text-gray-600' }, '🔍 Verifica autenticazione admin...')
+      )
     )
   }
 
@@ -312,7 +312,7 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
   }
 
   console.log('✅ AdminAuthGuard: User authenticated, showing protected content')
-  return <>{children}</>
+  return createElement('div', {}, children)
 }
 
 export function PermissionGuard({ 
@@ -327,19 +327,24 @@ export function PermissionGuard({
   const { hasPermission } = useAdminAuth()
 
   if (!hasPermission(permission)) {
-    return fallback || (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex items-center">
-          <span className="text-red-600 text-lg mr-2">🚫</span>
-          <p className="text-red-800">
-            <strong>Accesso negato:</strong> Non hai i permessi per visualizzare questo contenuto.
-          </p>
-        </div>
-      </div>
+    return fallback || createElement(
+      'div',
+      { className: 'bg-red-50 border border-red-200 rounded-lg p-4' },
+      createElement(
+        'div',
+        { className: 'flex items-center' },
+        createElement('span', { className: 'text-red-600 text-lg mr-2' }, '🚫'),
+        createElement(
+          'p',
+          { className: 'text-red-800' },
+          createElement('strong', {}, 'Accesso negato: '),
+          'Non hai i permessi per visualizzare questo contenuto.'
+        )
+      )
     )
   }
 
-  return <>{children}</>
+  return createElement('div', {}, children)
 }
 
 // Admin role constants
