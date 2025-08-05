@@ -122,7 +122,7 @@ export default function PartnerDashboard() {
       // Get monthly transactions for stats
       const { data: monthlyTxns, error: monthlyError } = await supabase
         .from('transactions')
-        .select('points_used, status, created_at')
+        .select('points_used, status, created_at, service_name')
         .eq('partner_id', currentPartnerId)
         .gte('created_at', startOfMonth.toISOString())
 
