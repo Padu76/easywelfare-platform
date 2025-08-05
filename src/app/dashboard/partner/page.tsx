@@ -62,10 +62,6 @@ export default function PartnerDashboard() {
   // For demo purposes, using first partner. In real app, this comes from auth
   const currentPartnerId = 'ptr_1'
 
-  useEffect(() => {
-    fetchPartnerData()
-  }, [])
-
   const fetchPartnerData = async () => {
     try {
       setIsLoading(true)
@@ -182,6 +178,10 @@ export default function PartnerDashboard() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchPartnerData()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const getServiceIcon = (category: string) => {
     switch (category?.toLowerCase()) {
@@ -531,7 +531,7 @@ export default function PartnerDashboard() {
                 <span className="text-green-600 text-lg">✅</span>
                 <div>
                   <p className="font-medium">Aggiorna regolarmente i servizi</p>
-                  <p className="text-sm text-gray-600">Mantieni l'offerta fresca e interessante</p>
+                  <p className="text-sm text-gray-600">Mantieni l&apos;offerta fresca e interessante</p>
                 </div>
               </div>
               
