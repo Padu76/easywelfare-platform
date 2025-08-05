@@ -614,8 +614,6 @@ export default function EmployeeCatalogPage() {
         services={getFilteredServices()}
         userPoints={employee?.available_points || 0}
         onBookService={handleServiceBooked}
-        favoriteServices={favoriteServices}
-        onToggleFavorite={toggleFavorite}
       />
 
       {/* Quick Tips */}
