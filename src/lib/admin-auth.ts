@@ -38,14 +38,17 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       // Check localStorage for admin session
       const adminSession = localStorage.getItem('easywelfare_admin_session')
       if (!adminSession) {
+        console.log('🔍 No admin session found')
         setLoading(false)
         return
       }
 
       const sessionData = JSON.parse(adminSession)
+      console.log('🔍 Found admin session:', sessionData)
       
       // Check if session is expired
       if (sessionData.expires_at && new Date(sessionData.expires_at) < new Date()) {
+        console.log('⏰ Admin session expired')
         localStorage.removeItem('easywelfare_admin_session')
         setLoading(false)
         return
@@ -60,11 +63,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (error || !adminUser) {
+        console.log('❌ Admin user not found or inactive:', error)
         localStorage.removeItem('easywelfare_admin_session')
         setLoading(false)
         return
       }
 
+      console.log('✅ Admin user authenticated:', adminUser.email)
       setUser({
         id: adminUser.id,
         email: adminUser.email,
@@ -75,7 +80,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       })
 
     } catch (error) {
-      console.error('Error checking admin auth:', error)
+      console.error('❌ Error checking admin auth:', error)
       localStorage.removeItem('easywelfare_admin_session')
     } finally {
       setLoading(false)
@@ -85,6 +90,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setLoading(true)
+      console.log('🔐 Attempting admin login for:', email)
 
       // Check if admin user exists
       const { data: adminUser, error: fetchError } = await supabase
@@ -95,37 +101,62 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         .single()
 
       if (fetchError || !adminUser) {
+        console.log('❌ Admin user not found:', fetchError)
         return { success: false, error: 'Admin non trovato o non attivo' }
       }
 
-      // In production, you would hash the password and compare
-      // For now, simple password check
-      const isPasswordValid = password === adminUser.password_hash
+      console.log('👤 Found admin user:', adminUser.email, 'Role:', adminUser.role)
+
+      // Password validation - handle both plaintext and hashed passwords
+      let isPasswordValid = false
+      
+      // For demo purposes, check if password matches directly (plaintext)
+      if (adminUser.password_hash === password) {
+        isPasswordValid = true
+        console.log('✅ Password validation: plaintext match')
+      }
+      // Future: add bcrypt hash comparison here
+      else if (adminUser.password_hash && adminUser.password_hash.startsWith('$2b$')) {
+        // This would be for bcrypt hashed passwords in production
+        // const bcrypt = require('bcrypt')
+        // isPasswordValid = await bcrypt.compare(password, adminUser.password_hash)
+        console.log('🔒 Password validation: hash comparison (not implemented)')
+      }
 
       if (!isPasswordValid) {
+        console.log('❌ Invalid password for:', email)
+        
         // Log failed attempt
         await logAdminActivity(adminUser.id, 'login_failed', null, null, {
           email: email,
-          reason: 'invalid_password'
+          reason: 'invalid_password',
+          timestamp: new Date().toISOString()
         })
         
         return { success: false, error: 'Credenziali non valide' }
       }
 
-      // Update last login
-      await supabase
+      console.log('✅ Password validated successfully')
+
+      // Update last login timestamp
+      const { error: updateError } = await supabase
         .from('admin_users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', adminUser.id)
 
-      // Create secure session
+      if (updateError) {
+        console.log('⚠️ Failed to update last_login:', updateError)
+      }
+
+      // Create secure session (8 hours expiry)
       const sessionData = {
         user_id: adminUser.id,
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString() // 8 hours
+        expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString()
       }
 
       localStorage.setItem('easywelfare_admin_session', JSON.stringify(sessionData))
+      console.log('💾 Admin session created, expires:', sessionData.expires_at)
 
       // Set user state
       setUser({
@@ -140,14 +171,16 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       // Log successful login
       await logAdminActivity(adminUser.id, 'login_success', null, null, {
         email: email,
-        session_duration: '8h'
+        session_duration: '8h',
+        timestamp: new Date().toISOString()
       })
 
+      console.log('🎉 Admin login successful!')
       return { success: true }
 
     } catch (error) {
-      console.error('Admin sign in error:', error)
-      return { success: false, error: 'Errore durante il login' }
+      console.error('❌ Admin sign in error:', error)
+      return { success: false, error: 'Errore durante il login. Verifica la connessione.' }
     } finally {
       setLoading(false)
     }
@@ -155,33 +188,49 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('🚪 Admin logout initiated')
+      
       if (user) {
         // Log logout
         await logAdminActivity(user.id, 'logout', null, null, {
-          session_duration: 'manual_logout'
+          session_duration: 'manual_logout',
+          timestamp: new Date().toISOString()
         })
+        console.log('📝 Logout activity logged')
       }
 
       // Remove session
       localStorage.removeItem('easywelfare_admin_session')
       setUser(null)
       
+      console.log('✅ Admin session cleared')
+      
       // Redirect to login
-      window.location.href = '/admin/login'
+      if (typeof window !== 'undefined') {
+        window.location.href = '/admin/login'
+      }
       
     } catch (error) {
-      console.error('Admin sign out error:', error)
+      console.error('❌ Admin sign out error:', error)
     }
   }
 
   const hasPermission = (permission: string): boolean => {
-    if (!user) return false
+    if (!user) {
+      console.log('🚫 No user - permission denied for:', permission)
+      return false
+    }
     
     // Super admin has all permissions
-    if (user.role === 'super_admin') return true
+    if (user.role === 'super_admin') {
+      console.log('👑 Super admin - permission granted for:', permission)
+      return true
+    }
     
     // Check specific permissions
-    return user.permissions.includes(permission)
+    const hasPerms = user.permissions.includes(permission)
+    console.log(`🔍 Permission check for ${permission}:`, hasPerms)
+    return hasPerms
   }
 
   // Helper function to log admin activities
@@ -193,7 +242,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     details: any = {}
   ) => {
     try {
-      await supabase
+      const { error } = await supabase
         .from('admin_activity_log')
         .insert([{
           admin_user_id: adminUserId,
@@ -201,12 +250,18 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           target_type: targetType,
           target_id: targetId,
           details: details,
-          ip_address: null, // Could be filled from request
-          user_agent: navigator.userAgent,
+          ip_address: null, // Could be filled from request in production
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
           created_at: new Date().toISOString()
         }])
+
+      if (error) {
+        console.log('⚠️ Failed to log admin activity:', error)
+      } else {
+        console.log('📝 Admin activity logged:', action)
+      }
     } catch (error) {
-      console.error('Error logging admin activity:', error)
+      console.error('❌ Error logging admin activity:', error)
     }
   }
 
@@ -242,19 +297,21 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verifica autenticazione admin...</p>
+          <p className="text-gray-600">🔍 Verifica autenticazione admin...</p>
         </div>
       </div>
     )
   }
 
   if (!user) {
+    console.log('🚫 AdminAuthGuard: No authenticated user, redirecting to login')
     if (typeof window !== 'undefined') {
       window.location.href = '/admin/login'
     }
     return null
   }
 
+  console.log('✅ AdminAuthGuard: User authenticated, showing protected content')
   return <>{children}</>
 }
 
@@ -340,7 +397,7 @@ export function getRolePermissions(role: string): string[] {
   }
 }
 
-// Function to create admin users programmatically
+// Function to create admin users programmatically (for development)
 export async function createAdminUser(userData: {
   email: string
   password: string
@@ -348,11 +405,13 @@ export async function createAdminUser(userData: {
   permissions?: string[]
 }) {
   try {
+    console.log('🔧 Creating admin user:', userData.email)
+    
     const { data, error } = await supabase
       .from('admin_users')
       .insert([{
         email: userData.email.toLowerCase().trim(),
-        password_hash: userData.password, // In production, hash this!
+        password_hash: userData.password, // In production, hash this with bcrypt!
         role: userData.role,
         permissions: userData.permissions || getRolePermissions(userData.role),
         is_active: true,
@@ -361,11 +420,15 @@ export async function createAdminUser(userData: {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error creating admin user:', error)
+      throw error
+    }
 
+    console.log('✅ Admin user created successfully:', data)
     return { success: true, data }
   } catch (error) {
-    console.error('Error creating admin user:', error)
+    console.error('❌ Failed to create admin user:', error)
     return { success: false, error: error }
   }
 }
