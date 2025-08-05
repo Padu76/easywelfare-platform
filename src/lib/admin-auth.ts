@@ -24,6 +24,7 @@ const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefin
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [initialized, setInitialized] = useState(false)
 
   useEffect(() => {
     checkAdminAuth()
@@ -32,12 +33,14 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const checkAdminAuth = async () => {
     try {
       setLoading(true)
+      console.log('🔍 Checking admin authentication...')
       
       // Check localStorage for admin session
       const adminSession = localStorage.getItem('easywelfare_admin_session')
       if (!adminSession) {
         console.log('🔍 No admin session found')
         setLoading(false)
+        setInitialized(true)
         return
       }
 
@@ -49,6 +52,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         console.log('⏰ Admin session expired')
         localStorage.removeItem('easywelfare_admin_session')
         setLoading(false)
+        setInitialized(true)
         return
       }
 
@@ -64,6 +68,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         console.log('❌ Admin user not found or inactive:', error)
         localStorage.removeItem('easywelfare_admin_session')
         setLoading(false)
+        setInitialized(true)
         return
       }
 
@@ -82,6 +87,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem('easywelfare_admin_session')
     } finally {
       setLoading(false)
+      setInitialized(true)
     }
   }
 
@@ -116,8 +122,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       // Future: add bcrypt hash comparison here
       else if (adminUser.password_hash && adminUser.password_hash.startsWith('$2b$')) {
         // This would be for bcrypt hashed passwords in production
-        // const bcrypt = require('bcrypt')
-        // isPasswordValid = await bcrypt.compare(password, adminUser.password_hash)
         console.log('🔒 Password validation: hash comparison (not implemented)')
       }
 
@@ -214,21 +218,9 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   const hasPermission = (permission: string): boolean => {
-    if (!user) {
-      console.log('🚫 No user - permission denied for:', permission)
-      return false
-    }
-    
-    // Super admin has all permissions
-    if (user.role === 'super_admin') {
-      console.log('👑 Super admin - permission granted for:', permission)
-      return true
-    }
-    
-    // Check specific permissions
-    const hasPerms = user.permissions.includes(permission)
-    console.log(`🔍 Permission check for ${permission}:`, hasPerms)
-    return hasPerms
+    if (!user) return false
+    if (user.role === 'super_admin') return true
+    return user.permissions.includes(permission)
   }
 
   // Helper function to log admin activities
@@ -248,15 +240,13 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           target_type: targetType,
           target_id: targetId,
           details: details,
-          ip_address: null, // Could be filled from request in production
+          ip_address: null,
           user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
           created_at: new Date().toISOString()
         }])
 
       if (error) {
         console.log('⚠️ Failed to log admin activity:', error)
-      } else {
-        console.log('📝 Admin activity logged:', action)
       }
     } catch (error) {
       console.error('❌ Error logging admin activity:', error)
@@ -265,7 +255,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const value: AdminAuthContextType = {
     user,
-    loading,
+    loading: loading && !initialized,
     signIn,
     signOut,
     hasPermission,
@@ -286,9 +276,32 @@ export function useAdminAuth(): AdminAuthContextType {
 
 export function AdminAuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAdminAuth()
+  const [redirecting, setRedirecting] = useState(false)
 
+  useEffect(() => {
+    // Only redirect if not loading, no user, not already redirecting, and not on login page
+    if (!loading && !user && !redirecting && typeof window !== 'undefined') {
+      const currentPath = window.location.pathname
+      console.log('🚫 AdminAuthGuard: Current path:', currentPath)
+      
+      // Don't redirect if already on login page
+      if (currentPath.includes('/admin/login')) {
+        console.log('✅ Already on login page, no redirect needed')
+        return
+      }
+      
+      console.log('🚫 No authenticated user, redirecting to login...')
+      setRedirecting(true)
+      
+      // Use setTimeout to avoid React state update warnings
+      setTimeout(() => {
+        window.location.href = '/admin/login'
+      }, 100)
+    }
+  }, [user, loading, redirecting])
+
+  // Show loading state
   if (loading) {
-    // Use createElement instead of JSX
     return createElement(
       'div',
       { className: 'min-h-screen flex items-center justify-center bg-gray-50' },
@@ -303,11 +316,24 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
     )
   }
 
+  // Show redirecting state
+  if (redirecting) {
+    return createElement(
+      'div',
+      { className: 'min-h-screen flex items-center justify-center bg-gray-50' },
+      createElement(
+        'div',
+        { className: 'text-center' },
+        createElement('div', { 
+          className: 'animate-pulse rounded-full h-12 w-12 bg-blue-600 mx-auto mb-4' 
+        }),
+        createElement('p', { className: 'text-gray-600' }, '🚀 Reindirizzamento al login...')
+      )
+    )
+  }
+
+  // Don't show anything if no user (will redirect)
   if (!user) {
-    console.log('🚫 AdminAuthGuard: No authenticated user, redirecting to login')
-    if (typeof window !== 'undefined') {
-      window.location.href = '/admin/login'
-    }
     return null
   }
 
@@ -347,14 +373,13 @@ export function PermissionGuard({
   return createElement('div', {}, children)
 }
 
-// Admin role constants
+// Constants and helper functions
 export const ADMIN_ROLES = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin', 
   SUPPORT: 'support'
 } as const
 
-// Admin permissions constants  
 export const ADMIN_PERMISSIONS = {
   VIEW_DASHBOARD: 'view_dashboard',
   MANAGE_COMPANIES: 'manage_companies',
@@ -366,7 +391,6 @@ export const ADMIN_PERMISSIONS = {
   SYSTEM_MAINTENANCE: 'system_maintenance'
 } as const
 
-// Helper functions
 export function getRoleDisplayName(role: string): string {
   switch (role) {
     case ADMIN_ROLES.SUPER_ADMIN:
@@ -402,7 +426,6 @@ export function getRolePermissions(role: string): string[] {
   }
 }
 
-// Function to create admin users programmatically (for development)
 export async function createAdminUser(userData: {
   email: string
   password: string
@@ -410,13 +433,11 @@ export async function createAdminUser(userData: {
   permissions?: string[]
 }) {
   try {
-    console.log('🔧 Creating admin user:', userData.email)
-    
     const { data, error } = await supabase
       .from('admin_users')
       .insert([{
         email: userData.email.toLowerCase().trim(),
-        password_hash: userData.password, // In production, hash this with bcrypt!
+        password_hash: userData.password,
         role: userData.role,
         permissions: userData.permissions || getRolePermissions(userData.role),
         is_active: true,
@@ -425,15 +446,9 @@ export async function createAdminUser(userData: {
       .select()
       .single()
 
-    if (error) {
-      console.error('❌ Error creating admin user:', error)
-      throw error
-    }
-
-    console.log('✅ Admin user created successfully:', data)
+    if (error) throw error
     return { success: true, data }
   } catch (error) {
-    console.error('❌ Failed to create admin user:', error)
     return { success: false, error: error }
   }
 }
