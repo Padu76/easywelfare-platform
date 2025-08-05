@@ -1,6 +1,4 @@
-'use client'
-
-import { createContext, useContext, useState, ReactNode } from 'react'
+import { createContext, useContext, useState, ReactNode, createElement } from 'react'
 
 interface AdminUser {
   id: string
@@ -54,11 +52,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!user
   }
 
-  return (
-    <AdminAuthContext.Provider value={value}>
-      {children}
-    </AdminAuthContext.Provider>
-  )
+  return createElement(AdminAuthContext.Provider, { value }, children)
 }
 
 export function useAdminAuth(): AdminAuthContextType {
@@ -70,11 +64,11 @@ export function useAdminAuth(): AdminAuthContextType {
 }
 
 export function AdminAuthGuard({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  return children
 }
 
 export function PermissionGuard({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  return children
 }
 
 export const ADMIN_ROLES = {
