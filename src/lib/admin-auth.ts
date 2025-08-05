@@ -1,10 +1,8 @@
-// src/lib/admin-auth.ts
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { supabase } from '@/lib/supabase'
 
-// Admin User Interface
 interface AdminUser {
   id: string
   email: string
@@ -14,7 +12,6 @@ interface AdminUser {
   last_login: string
 }
 
-// Auth Context Interface
 interface AdminAuthContextType {
   user: AdminUser | null
   loading: boolean
@@ -24,16 +21,13 @@ interface AdminAuthContextType {
   isAuthenticated: boolean
 }
 
-// Create Auth Context
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined)
 
-// Auth Provider Component
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AdminUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check if admin is already logged in
     checkAdminAuth()
   }, [])
 
@@ -41,7 +35,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       
-      // Check localStorage for admin session
       const adminSession = localStorage.getItem('easywelfare_admin_session')
       if (!adminSession) {
         setLoading(false)
@@ -50,14 +43,12 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
       const sessionData = JSON.parse(adminSession)
       
-      // Verify session is still valid (check expiry)
       if (sessionData.expires_at && new Date(sessionData.expires_at) < new Date()) {
         localStorage.removeItem('easywelfare_admin_session')
         setLoading(false)
         return
       }
 
-      // Fetch current admin user data
       const { data: adminUser, error } = await supabase
         .from('admin_users')
         .select('*')
@@ -71,7 +62,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Set authenticated admin user
       setUser({
         id: adminUser.id,
         email: adminUser.email,
@@ -93,10 +83,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
 
-      // In a real implementation, you'd use proper password hashing
-      // For demo purposes, we'll use a simple check
-      
-      // Check if admin user exists
       const { data: adminUser, error: fetchError } = await supabase
         .from('admin_users')
         .select('*')
@@ -108,30 +94,25 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: 'Admin non trovato o non attivo' }
       }
 
-      // In production, use bcrypt or similar for password verification
-      // For demo: simple password check (NEVER do this in production!)
-      const isPasswordValid = password === 'admin123' // Demo password
+      const isPasswordValid = password === 'admin123'
       
       if (!isPasswordValid) {
         return { success: false, error: 'Credenziali non valide' }
       }
 
-      // Update last login
       await supabase
         .from('admin_users')
         .update({ last_login: new Date().toISOString() })
         .eq('id', adminUser.id)
 
-      // Create admin session
       const sessionData = {
         user_id: adminUser.id,
         created_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       }
 
       localStorage.setItem('easywelfare_admin_session', JSON.stringify(sessionData))
 
-      // Set user state
       setUser({
         id: adminUser.id,
         email: adminUser.email,
@@ -153,15 +134,9 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
-      // Remove session from localStorage
       localStorage.removeItem('easywelfare_admin_session')
-      
-      // Clear user state
       setUser(null)
-      
-      // Redirect to admin login
       window.location.href = '/admin/login'
-      
     } catch (error) {
       console.error('Admin sign out error:', error)
     }
@@ -169,11 +144,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (permission: string): boolean => {
     if (!user) return false
-    
-    // Super admin has all permissions
     if (user.role === 'super_admin') return true
-    
-    // Check specific permissions
     return user.permissions.includes(permission)
   }
 
@@ -193,7 +164,6 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   )
 }
 
-// Hook to use admin auth
 export function useAdminAuth(): AdminAuthContextType {
   const context = useContext(AdminAuthContext)
   if (context === undefined) {
@@ -202,7 +172,6 @@ export function useAdminAuth(): AdminAuthContextType {
   return context
 }
 
-// Admin Auth Guard Component
 export function AdminAuthGuard({ children }: { children: ReactNode }) {
   const { user, loading } = useAdminAuth()
 
@@ -218,7 +187,6 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
   }
 
   if (!user) {
-    // Redirect to admin login
     if (typeof window !== 'undefined') {
       window.location.href = '/admin/login'
     }
@@ -228,7 +196,6 @@ export function AdminAuthGuard({ children }: { children: ReactNode }) {
   return <>{children}</>
 }
 
-// Permission Guard Component
 export function PermissionGuard({ 
   permission, 
   children, 
@@ -256,10 +223,8 @@ export function PermissionGuard({
   return <>{children}</>
 }
 
-// Utility function to create demo admin user
 export async function createDemoAdminUser() {
   try {
-    // Check if demo admin already exists
     const { data: existingAdmin } = await supabase
       .from('admin_users')
       .select('id')
@@ -271,12 +236,11 @@ export async function createDemoAdminUser() {
       return existingAdmin
     }
 
-    // Create demo admin user
     const { data: newAdmin, error } = await supabase
       .from('admin_users')
       .insert([{
         email: 'admin@easywelfare.com',
-        password_hash: 'admin123', // In production, use proper hashing!
+        password_hash: 'admin123',
         role: 'super_admin',
         permissions: [
           'view_dashboard',
@@ -306,14 +270,12 @@ export async function createDemoAdminUser() {
   }
 }
 
-// Admin role constants
 export const ADMIN_ROLES = {
   SUPER_ADMIN: 'super_admin',
   ADMIN: 'admin', 
   SUPPORT: 'support'
 } as const
 
-// Admin permissions constants
 export const ADMIN_PERMISSIONS = {
   VIEW_DASHBOARD: 'view_dashboard',
   MANAGE_COMPANIES: 'manage_companies',
@@ -324,7 +286,6 @@ export const ADMIN_PERMISSIONS = {
   MANAGE_ADMINS: 'manage_admins'
 } as const
 
-// Helper function to get role display name
 export function getRoleDisplayName(role: string): string {
   switch (role) {
     case ADMIN_ROLES.SUPER_ADMIN:
@@ -338,7 +299,6 @@ export function getRoleDisplayName(role: string): string {
   }
 }
 
-// Helper function to get role permissions
 export function getRolePermissions(role: string): string[] {
   switch (role) {
     case ADMIN_ROLES.SUPER_ADMIN:
