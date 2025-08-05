@@ -69,7 +69,7 @@ export default function EmployeeCatalogPage() {
     fetchEmployeeData()
     fetchServices()
     loadUserPreferences()
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchEmployeeData = async () => {
     try {
@@ -391,9 +391,28 @@ export default function EmployeeCatalogPage() {
     return colors[category] || 'gray'
   }
 
+  const transformServicesToServiceBookingFormat = (services: ServiceData[]) => {
+    return services.map(service => ({
+      id: service.id,
+      partnerId: service.partner_id,
+      name: service.name,
+      description: service.description,
+      category: service.category as any, // ServiceCategory enum
+      pointsRequired: service.points_required,
+      originalPrice: service.original_price,
+      discountPercentage: service.discount_percentage,
+      isActive: service.is_active,
+      createdAt: new Date(service.created_at),
+      updatedAt: new Date(service.created_at)
+    }))
+  }
+
   const getFilteredServices = () => {
-    if (selectedCategory === 'all') return services
-    return services.filter(service => service.category.toLowerCase() === selectedCategory)
+    const filtered = selectedCategory === 'all' 
+      ? services 
+      : services.filter(service => service.category.toLowerCase() === selectedCategory)
+    
+    return transformServicesToServiceBookingFormat(filtered)
   }
 
   if (isLoading) {
