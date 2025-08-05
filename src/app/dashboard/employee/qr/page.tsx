@@ -136,7 +136,9 @@ export default function EmployeeQRPage() {
       const formattedHistory = (historyData || []).map(tx => ({
         id: tx.id,
         service_name: tx.service_name,
-        partner_name: tx.partners?.business_name || 'Partner Sconosciuto',
+        partner_name: Array.isArray(tx.partners) 
+          ? tx.partners[0]?.business_name || 'Partner Sconosciuto'
+          : tx.partners?.business_name || 'Partner Sconosciuto',
         points_used: tx.points_used,
         created_at: tx.created_at,
         status: tx.status,
