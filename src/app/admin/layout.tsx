@@ -384,7 +384,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 }
 
 // Quick Access Component (can be used in dashboard)
-export function QuickActions() {
+function QuickActions() {
   const { hasPermission } = useAdminAuth()
 
   const quickActions = [
@@ -442,7 +442,7 @@ export function QuickActions() {
 }
 
 // System Health Indicator Component
-export function SystemHealthIndicator() {
+function SystemHealthIndicator() {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
       <div className="flex items-center justify-between">
