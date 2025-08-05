@@ -1,94 +1,300 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
 import Card from '@/components/ui/card'
 import Button from '@/components/ui/button'
 import Input from '@/components/ui/input'
 import Badge from '@/components/ui/badge'
 import QRScanner from '@/components/dashboard/QRScanner'
 
+// Interfaces
+interface VoucherData {
+  id: string
+  employee_id: string
+  service_name: string
+  points_used: number
+  status: string
+  created_at: string
+  qr_code_data?: string
+  employees?: {
+    first_name: string
+    last_name: string
+    email: string
+  }
+}
+
+interface ProcessedVoucher {
+  id: string
+  customerName: string
+  customerEmail: string
+  serviceName: string
+  pointsToRedeem: number
+  qrCode: string
+  generatedAt: Date
+  expiresAt: Date
+  validatedAt?: Date
+  status: 'active' | 'expired' | 'completed' | 'pending'
+}
+
+interface VoucherStats {
+  todayScanned: number
+  todayPoints: number
+  weeklyTotal: number
+  pending: number
+}
+
+interface ManualVoucher {
+  customerEmail: string
+  serviceName: string
+  pointsToRedeem: number
+  notes: string
+}
+
 export default function PartnerVouchersPage() {
+  const [vouchers, setVouchers] = useState<ProcessedVoucher[]>([])
+  const [voucherStats, setVoucherStats] = useState<VoucherStats | null>(null)
+  const [services, setServices] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  
+  // UI State
   const [showScanner, setShowScanner] = useState(false)
   const [showCreateVoucher, setShowCreateVoucher] = useState(false)
   const [activeTab, setActiveTab] = useState<'scan' | 'pending' | 'history'>('scan')
-
-  const [pendingVouchers] = useState([
-    {
-      id: 'voucher_1',
-      customerName: 'Mario Rossi',
-      serviceName: 'Personal Training',
-      pointsToRedeem: 200,
-      qrCode: 'QR_PT_20240115_001',
-      generatedAt: new Date('2024-01-15T14:25:00'),
-      expiresAt: new Date('2024-01-15T14:40:00'),
-      status: 'active'
-    },
-    {
-      id: 'voucher_2',
-      customerName: 'Giulia Bianchi',
-      serviceName: 'Corso Yoga',
-      pointsToRedeem: 80,
-      qrCode: 'QR_YG_20240115_002',
-      generatedAt: new Date('2024-01-15T09:10:00'),
-      expiresAt: new Date('2024-01-15T09:25:00'),
-      status: 'expired'
-    }
-  ])
-
-  const [validatedVouchers] = useState([
-    {
-      id: 'voucher_3',
-      customerName: 'Luca Verdi',
-      serviceName: 'Personal Training',
-      pointsRedeemed: 200,
-      qrCode: 'QR_PT_20240114_003',
-      generatedAt: new Date('2024-01-14T16:30:00'),
-      validatedAt: new Date('2024-01-14T16:35:00'),
-      status: 'completed'
-    },
-    {
-      id: 'voucher_4',
-      customerName: 'Anna Neri',
-      serviceName: 'Consulenza Nutrizionale',
-      pointsRedeemed: 150,
-      qrCode: 'QR_NU_20240114_004',
-      generatedAt: new Date('2024-01-14T11:00:00'),
-      validatedAt: new Date('2024-01-14T11:05:00'),
-      status: 'completed'
-    },
-    {
-      id: 'voucher_5',
-      customerName: 'Francesco Blu',
-      serviceName: 'Personal Training',
-      pointsRedeemed: 200,
-      qrCode: 'QR_PT_20240113_005',
-      generatedAt: new Date('2024-01-13T18:00:00'),
-      validatedAt: new Date('2024-01-13T18:05:00'),
-      status: 'completed'
-    }
-  ])
-
-  const [manualVoucher, setManualVoucher] = useState({
+  
+  // Manual voucher form
+  const [manualVoucher, setManualVoucher] = useState<ManualVoucher>({
     customerEmail: '',
     serviceName: '',
     pointsToRedeem: 0,
     notes: ''
   })
 
-  const voucherStats = {
-    todayScanned: 8,
-    todayPoints: 1240,
-    weeklyTotal: 47,
-    pending: pendingVouchers.filter(v => v.status === 'active').length
+  // For demo purposes, using first partner. In real app, this comes from auth
+  const currentPartnerId = 'ptr_1'
+
+  const fetchVouchersData = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      // Fetch partner services for manual voucher creation
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('partner_id', currentPartnerId)
+        .eq('is_active', true)
+
+      if (servicesError) throw servicesError
+      setServices(servicesData || [])
+
+      // Fetch all transactions for this partner that have QR codes (vouchers)
+      const { data: vouchersData, error: vouchersError } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          employees!inner(first_name, last_name, email)
+        `)
+        .eq('partner_id', currentPartnerId)
+        .not('qr_code_data', 'is', null)
+        .order('created_at', { ascending: false })
+
+      if (vouchersError) throw vouchersError
+
+      // Process vouchers data
+      const processedVouchers: ProcessedVoucher[] = (vouchersData || []).map(v => {
+        const createdAt = new Date(v.created_at)
+        const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000) // 15 minutes expiry
+        const now = new Date()
+        
+        let status: 'active' | 'expired' | 'completed' | 'pending'
+        if (v.status === 'completed') {
+          status = 'completed'
+        } else if (v.status === 'pending' && now > expiresAt) {
+          status = 'expired'
+        } else if (v.status === 'pending') {
+          status = 'active'
+        } else {
+          status = 'pending'
+        }
+
+        return {
+          id: v.id,
+          customerName: v.employees 
+            ? `${v.employees.first_name} ${v.employees.last_name}`
+            : 'Cliente Sconosciuto',
+          customerEmail: v.employees?.email || '',
+          serviceName: v.service_name || 'Servizio Sconosciuto',
+          pointsToRedeem: v.points_used || 0,
+          qrCode: v.qr_code_data || `QR_${v.id.slice(-8)}`,
+          generatedAt: createdAt,
+          expiresAt: expiresAt,
+          validatedAt: v.status === 'completed' ? createdAt : undefined,
+          status: status
+        }
+      })
+
+      setVouchers(processedVouchers)
+
+      // Calculate stats
+      const now = new Date()
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()))
+
+      const todayVouchers = processedVouchers.filter(v => 
+        v.validatedAt && v.validatedAt >= startOfDay
+      )
+      
+      const weeklyVouchers = processedVouchers.filter(v => 
+        v.validatedAt && v.validatedAt >= startOfWeek
+      )
+
+      const stats: VoucherStats = {
+        todayScanned: todayVouchers.length,
+        todayPoints: todayVouchers.reduce((sum, v) => sum + v.pointsToRedeem, 0),
+        weeklyTotal: weeklyVouchers.length,
+        pending: processedVouchers.filter(v => v.status === 'active').length
+      }
+
+      setVoucherStats(stats)
+
+    } catch (err) {
+      console.error('Error fetching vouchers:', err)
+      setError('Errore nel caricamento dei voucher. Riprova.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleScanSuccess = (transaction: any) => {
-    console.log('Transaction validated:', transaction)
-    // Here would be actual validation logic
+  useEffect(() => {
+    fetchVouchersData()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleScanSuccess = async (transaction: any) => {
+    console.log('QR Scan successful:', transaction)
+    
+    try {
+      // Update transaction status to completed
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', transaction.id)
+
+      if (updateError) throw updateError
+
+      // Refresh data after successful scan
+      await fetchVouchersData()
+      setShowScanner(false)
+
+      // Show success message (you could add a toast notification here)
+      console.log('Voucher validated successfully!')
+
+    } catch (err) {
+      console.error('Error validating voucher:', err)
+      handleScanError('Errore nella validazione del voucher')
+    }
   }
 
   const handleScanError = (error: string) => {
-    console.error('Scan error:', error)
+    console.error('QR Scan error:', error)
+    // Here you could show an error toast
+  }
+
+  const validateVoucherManually = async (voucherId: string) => {
+    try {
+      const { error: updateError } = await supabase
+        .from('transactions')
+        .update({ 
+          status: 'completed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', voucherId)
+
+      if (updateError) throw updateError
+
+      // Refresh data
+      await fetchVouchersData()
+      
+      console.log('Manual validation successful!')
+
+    } catch (err) {
+      console.error('Error in manual validation:', err)
+    }
+  }
+
+  const createManualVoucher = async () => {
+    try {
+      if (!manualVoucher.customerEmail || !manualVoucher.serviceName || manualVoucher.pointsToRedeem <= 0) {
+        return
+      }
+
+      // Find employee by email
+      const { data: employeeData, error: employeeError } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name, available_points')
+        .eq('email', manualVoucher.customerEmail)
+        .single()
+
+      if (employeeError) {
+        console.error('Employee not found:', employeeError)
+        return
+      }
+
+      // Check if employee has enough points
+      if (employeeData.available_points < manualVoucher.pointsToRedeem) {
+        console.error('Employee does not have enough points')
+        return
+      }
+
+      // Create transaction
+      const newTransaction = {
+        employee_id: employeeData.id,
+        partner_id: currentPartnerId,
+        service_name: manualVoucher.serviceName,
+        points_used: manualVoucher.pointsToRedeem,
+        status: 'pending',
+        qr_code_data: `MANUAL_${Date.now()}`,
+        created_at: new Date().toISOString(),
+        notes: manualVoucher.notes || null
+      }
+
+      const { error: insertError } = await supabase
+        .from('transactions')
+        .insert([newTransaction])
+
+      if (insertError) throw insertError
+
+      // Update employee points
+      const { error: updateError } = await supabase
+        .from('employees')
+        .update({ 
+          available_points: employeeData.available_points - manualVoucher.pointsToRedeem 
+        })
+        .eq('id', employeeData.id)
+
+      if (updateError) throw updateError
+
+      // Reset form and close modal
+      setManualVoucher({
+        customerEmail: '',
+        serviceName: '',
+        pointsToRedeem: 0,
+        notes: ''
+      })
+      setShowCreateVoucher(false)
+
+      // Refresh data
+      await fetchVouchersData()
+
+      console.log('Manual voucher created successfully!')
+
+    } catch (err) {
+      console.error('Error creating manual voucher:', err)
+    }
   }
 
   const getVoucherStatusBadge = (status: string) => {
@@ -99,6 +305,8 @@ export default function PartnerVouchersPage() {
         return <Badge variant="danger" icon="⏰">Scaduto</Badge>
       case 'completed':
         return <Badge variant="info" icon="🎯">Completato</Badge>
+      case 'pending':
+        return <Badge variant="warning" icon="⏳">In Attesa</Badge>
       default:
         return <Badge variant="default">{status}</Badge>
     }
@@ -120,20 +328,47 @@ export default function PartnerVouchersPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`
   }
 
-  const validateVoucherManually = (voucherId: string) => {
-    console.log('Validating voucher manually:', voucherId)
-    // Here would be manual validation logic
+  // Separate vouchers by status
+  const pendingVouchers = vouchers.filter(v => v.status === 'active' || v.status === 'expired')
+  const validatedVouchers = vouchers.filter(v => v.status === 'completed')
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        {/* Loading Skeleton */}
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="animate-pulse">
+              <div className="bg-gray-200 rounded-lg h-24"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
-  const createManualVoucher = () => {
-    console.log('Creating manual voucher:', manualVoucher)
-    setShowCreateVoucher(false)
-    setManualVoucher({
-      customerEmail: '',
-      serviceName: '',
-      pointsToRedeem: 0,
-      notes: ''
-    })
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <Card.Content>
+            <div className="text-center py-12">
+              <span className="text-4xl mb-4 block">⚠️</span>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Errore di Caricamento</h3>
+              <p className="text-gray-600 mb-4">{error}</p>
+              <Button onClick={fetchVouchersData}>
+                🔄 Riprova
+              </Button>
+            </div>
+          </Card.Content>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -142,7 +377,7 @@ export default function PartnerVouchersPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Gestione Voucher</h1>
-          <p className="text-gray-600">Scansiona QR code e gestisci le prenotazioni clienti</p>
+          <p className="text-gray-600">Scansiona QR code e gestisci le prenotazioni clienti - Dati in tempo reale</p>
         </div>
         <div className="flex space-x-3">
           <Button
@@ -160,14 +395,14 @@ export default function PartnerVouchersPage() {
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards - REAL DATA FROM SUPABASE */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card>
           <Card.Content>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Scansioni Oggi</p>
-                <p className="text-2xl font-bold text-blue-600">{voucherStats.todayScanned}</p>
+                <p className="text-2xl font-bold text-blue-600">{voucherStats?.todayScanned || 0}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <span className="text-blue-600 text-xl">📱</span>
@@ -181,7 +416,7 @@ export default function PartnerVouchersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Punti Oggi</p>
-                <p className="text-2xl font-bold text-green-600">{voucherStats.todayPoints}</p>
+                <p className="text-2xl font-bold text-green-600">{voucherStats?.todayPoints || 0}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <span className="text-green-600 text-xl">💎</span>
@@ -195,7 +430,7 @@ export default function PartnerVouchersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">Totale Settimana</p>
-                <p className="text-2xl font-bold text-purple-600">{voucherStats.weeklyTotal}</p>
+                <p className="text-2xl font-bold text-purple-600">{voucherStats?.weeklyTotal || 0}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
                 <span className="text-purple-600 text-xl">📊</span>
@@ -209,7 +444,7 @@ export default function PartnerVouchersPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">In Attesa</p>
-                <p className="text-2xl font-bold text-yellow-600">{voucherStats.pending}</p>
+                <p className="text-2xl font-bold text-yellow-600">{voucherStats?.pending || 0}</p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
                 <span className="text-yellow-600 text-xl">⏳</span>
@@ -241,7 +476,7 @@ export default function PartnerVouchersPage() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              ⏳ In Attesa ({voucherStats.pending})
+              ⏳ In Attesa ({voucherStats?.pending || 0})
             </button>
             <button
               onClick={() => setActiveTab('history')}
@@ -251,7 +486,7 @@ export default function PartnerVouchersPage() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              📋 Storico
+              📋 Storico ({validatedVouchers.length})
             </button>
           </div>
         </Card.Content>
@@ -260,11 +495,18 @@ export default function PartnerVouchersPage() {
       {/* Tab Content */}
       {activeTab === 'scan' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <QRScanner
-            partnerId="ptr_1"
-            onScanSuccess={handleScanSuccess}
-            onScanError={handleScanError}
-          />
+          <Card>
+            <Card.Header>
+              <h3 className="text-lg font-semibold text-gray-900">Scanner QR</h3>
+            </Card.Header>
+            <Card.Content>
+              <QRScanner
+                partnerId={currentPartnerId}
+                onScanSuccess={handleScanSuccess}
+                onScanError={handleScanError}
+              />
+            </Card.Content>
+          </Card>
           
           <Card>
             <Card.Header>
@@ -348,6 +590,7 @@ export default function PartnerVouchersPage() {
                         
                         <div className="mt-2">
                           <p className="text-xs text-gray-500">QR: {voucher.qrCode}</p>
+                          <p className="text-xs text-gray-500">Email: {voucher.customerEmail}</p>
                         </div>
                       </div>
                       
@@ -416,10 +659,11 @@ export default function PartnerVouchersPage() {
                         <div>
                           <p className="font-medium text-gray-900">{voucher.customerName}</p>
                           <p className="text-sm text-gray-500">QR: {voucher.qrCode}</p>
+                          <p className="text-sm text-gray-500">{voucher.customerEmail}</p>
                         </div>
                       </td>
                       <td className="py-3 px-4 font-medium">{voucher.serviceName}</td>
-                      <td className="py-3 px-4 font-semibold text-blue-600">{voucher.pointsRedeemed}</td>
+                      <td className="py-3 px-4 font-semibold text-blue-600">{voucher.pointsToRedeem}</td>
                       <td className="py-3 px-4 text-gray-600">
                         <div>
                           <p>{voucher.generatedAt.toLocaleDateString()}</p>
@@ -428,8 +672,8 @@ export default function PartnerVouchersPage() {
                       </td>
                       <td className="py-3 px-4 text-gray-600">
                         <div>
-                          <p>{voucher.validatedAt.toLocaleDateString()}</p>
-                          <p className="text-sm">{voucher.validatedAt.toLocaleTimeString()}</p>
+                          <p>{voucher.validatedAt?.toLocaleDateString()}</p>
+                          <p className="text-sm">{voucher.validatedAt?.toLocaleTimeString()}</p>
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -440,6 +684,18 @@ export default function PartnerVouchersPage() {
                 </tbody>
               </table>
             </div>
+            
+            {validatedVouchers.length === 0 && (
+              <div className="text-center py-12">
+                <span className="text-6xl mb-4 block">📋</span>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  Nessun voucher validato ancora
+                </h3>
+                <p className="text-gray-600">
+                  I voucher completati appariranno qui
+                </p>
+              </div>
+            )}
           </Card.Content>
         </Card>
       )}
@@ -460,7 +716,7 @@ export default function PartnerVouchersPage() {
               </div>
               
               <QRScanner
-                partnerId="ptr_1"
+                partnerId={currentPartnerId}
                 onScanSuccess={(transaction) => {
                   handleScanSuccess(transaction)
                   setShowScanner(false)
@@ -496,12 +752,30 @@ export default function PartnerVouchersPage() {
                   placeholder="cliente@email.com"
                 />
                 
-                <Input
-                  label="Nome Servizio"
-                  value={manualVoucher.serviceName}
-                  onChange={(e) => setManualVoucher(prev => ({ ...prev, serviceName: e.target.value }))}
-                  placeholder="Personal Training"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Servizio
+                  </label>
+                  <select
+                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={manualVoucher.serviceName}
+                    onChange={(e) => {
+                      const selectedService = services.find(s => s.name === e.target.value)
+                      setManualVoucher(prev => ({ 
+                        ...prev, 
+                        serviceName: e.target.value,
+                        pointsToRedeem: selectedService?.points_required || 0
+                      }))
+                    }}
+                  >
+                    <option value="">Seleziona un servizio</option>
+                    {services.map((service) => (
+                      <option key={service.id} value={service.name}>
+                        {service.name} ({service.points_required} punti)
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 
                 <Input
                   label="Punti da Riscattare"
@@ -526,7 +800,7 @@ export default function PartnerVouchersPage() {
                 
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                   <p className="text-yellow-800 text-sm">
-                    ⚠️ <strong>Attenzione:</strong> I voucher manuali devono essere autorizzati dal cliente tramite email.
+                    ⚠️ <strong>Attenzione:</strong> Il sistema verificherà automaticamente che il cliente abbia punti sufficienti.
                   </p>
                 </div>
                 
