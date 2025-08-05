@@ -555,7 +555,7 @@ export default function PartnerDashboard() {
                 <span className="text-yellow-600 text-lg">📊</span>
                 <div>
                   <p className="font-medium">Monitora le performance</p>
-                  <p className="text-sm text-gray-600">Usa i dati per migliorare l'offerta</p>
+                  <p className="text-sm text-gray-600">Usa i dati per migliorare l&apos;offerta</p>
                 </div>
               </div>
             </div>
