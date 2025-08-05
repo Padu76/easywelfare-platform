@@ -583,7 +583,7 @@ export default function EmployeeQRPage() {
                   <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-medium">1</span>
                   <div>
                     <p className="font-medium">Genera il QR Code</p>
-                    <p className="text-sm text-gray-600">Clicca su "Genera QR Code" per creare il codice</p>
+                    <p className="text-sm text-gray-600">Clicca su &quot;Genera QR Code&quot; per creare il codice</p>
                   </div>
                 </div>
                 
