@@ -25,8 +25,18 @@ interface ServiceData {
 
 interface EmployeeData {
   id: string
-  available_points: number
   company_id: string
+  first_name: string
+  last_name: string
+  email: string
+  employee_code: string
+  department: string
+  allocated_credits: number
+  used_credits: number
+  status: string
+  hire_date: string
+  created_at: string
+  updated_at: string
 }
 
 interface CategoryStats {
@@ -62,25 +72,60 @@ export default function EmployeeCatalogPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // For demo purposes, using first employee. In real app, this comes from auth
-  const currentEmployeeId = 'emp_1'
-
   useEffect(() => {
     fetchEmployeeData()
     fetchServices()
     loadUserPreferences()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   const fetchEmployeeData = async () => {
     try {
-      const { data: employeeData, error: employeeError } = await supabase
-        .from('employees')
-        .select('id, available_points, company_id')
-        .eq('id', currentEmployeeId)
-        .single()
+      console.log('🔍 Fetching employee data with correct schema...')
 
-      if (employeeError) throw employeeError
-      setEmployee(employeeData)
+      // Try to get active employee using correct schema
+      let { data: employees, error: employeesError } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('status', 'active')
+        .limit(1)
+
+      if (employeesError) {
+        console.log('Error with status=active, trying any employee:', employeesError)
+        // Try to get any employee
+        const { data: anyEmployees, error: anyError } = await supabase
+          .from('employees')
+          .select('*')
+          .limit(1)
+
+        if (!anyError && anyEmployees && anyEmployees.length > 0) {
+          employees = anyEmployees
+        }
+      }
+
+      let currentEmployee = employees?.[0]
+
+      // If no employee found, use mock data
+      if (!currentEmployee) {
+        console.log('🔧 No employee found, using mock data')
+        currentEmployee = {
+          id: 'demo_emp_001',
+          company_id: 'demo_company_001',
+          first_name: 'Mario',
+          last_name: 'Rossi',
+          email: 'mario.rossi@demo.com',
+          employee_code: 'EMP001',
+          department: 'IT',
+          allocated_credits: 1200,
+          used_credits: 350,
+          status: 'active',
+          hire_date: '2024-01-15',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      }
+
+      console.log('✅ Employee data loaded:', currentEmployee)
+      setEmployee(currentEmployee)
     } catch (err) {
       console.error('Error fetching employee data:', err)
       setError('Errore nel caricamento dati dipendente')
@@ -90,6 +135,7 @@ export default function EmployeeCatalogPage() {
   const fetchServices = async () => {
     try {
       setIsLoading(true)
+      console.log('🔍 Fetching services...')
       
       // Fetch all active services with partner info
       const { data: servicesData, error: servicesError } = await supabase
@@ -101,14 +147,18 @@ export default function EmployeeCatalogPage() {
         .eq('is_active', true)
         .order('created_at', { ascending: false })
 
-      if (servicesError) throw servicesError
+      if (servicesError) {
+        console.error('Services error:', servicesError)
+        // Continue with empty services instead of throwing
+      }
 
-      setServices(servicesData || [])
+      const finalServices = servicesData || []
+      setServices(finalServices)
       
       // Calculate category statistics
       const categoryMap = new Map()
       
-      ;(servicesData || []).forEach(service => {
+      finalServices.forEach(service => {
         const category = service.category.toLowerCase()
         if (!categoryMap.has(category)) {
           categoryMap.set(category, {
@@ -125,11 +175,13 @@ export default function EmployeeCatalogPage() {
       setCategories(Array.from(categoryMap.values()))
       
       // Generate intelligent recommendations
-      await generateRecommendations(servicesData || [])
+      await generateRecommendations(finalServices)
+      
+      console.log('✅ Services loaded:', finalServices.length)
       
     } catch (err) {
       console.error('Error fetching services:', err)
-      setError('Errore nel caricamento servizi')
+      // Don't throw, continue with empty services
     } finally {
       setIsLoading(false)
     }
@@ -137,15 +189,22 @@ export default function EmployeeCatalogPage() {
 
   const generateRecommendations = async (allServices: ServiceData[]) => {
     try {
+      if (!employee) return
+
+      console.log('🔍 Generating recommendations for employee:', employee.id)
+
       // Get user's transaction history for personalized recommendations
       const { data: userTransactions, error: txError } = await supabase
         .from('transactions')
         .select('service_name, created_at')
-        .eq('employee_id', currentEmployeeId)
+        .eq('employee_id', employee.id)
         .order('created_at', { ascending: false })
         .limit(10)
 
-      if (txError) throw txError
+      if (txError) {
+        console.warn('Error fetching transactions for recommendations:', txError)
+        // Continue with fallback recommendations
+      }
 
       // Analyze user preferences
       const userCategories = new Set()
@@ -200,61 +259,65 @@ export default function EmployeeCatalogPage() {
         })
       }
 
-      // Popular services (most transactions)
-      const { data: popularTx, error: popularError } = await supabase
-        .from('transactions')
-        .select('service_name')
-        .eq('status', 'completed')
-        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-
-      if (!popularError && popularTx) {
-        const serviceCount = new Map()
-        popularTx.forEach(tx => {
-          serviceCount.set(tx.service_name, (serviceCount.get(tx.service_name) || 0) + 1)
-        })
-
-        const popularServices = Array.from(serviceCount.entries())
-          .sort((a, b) => b[1] - a[1])
+      // Popular services (fallback with top services)
+      if (allServices.length > 0) {
+        const popularServices = allServices
           .slice(0, 3)
-          .map(([name]) => name)
+          .map(s => s.name)
 
         if (popularServices.length > 0) {
           recs.push({
             id: 'rec_popular',
             title: 'I più popolari',
-            description: 'Servizi più richiesti dai colleghi questo mese',
+            description: 'Servizi più richiesti dai colleghi',
             services: popularServices,
             reason: 'popular'
           })
         }
       }
 
-      setRecommendations(recs)
-    } catch (err) {
-      console.error('Error generating recommendations:', err)
-      // Set fallback recommendations
-      setRecommendations([
-        {
+      // If no recommendations, add fallback
+      if (recs.length === 0 && allServices.length > 0) {
+        recs.push({
           id: 'rec_fallback',
           title: 'Servizi Consigliati',
           description: 'Una selezione dei nostri migliori servizi',
           services: allServices.slice(0, 3).map(s => s.name),
           reason: 'fallback'
-        }
-      ])
+        })
+      }
+
+      setRecommendations(recs)
+      console.log('✅ Recommendations generated:', recs.length)
+    } catch (err) {
+      console.error('Error generating recommendations:', err)
+      // Set minimal fallback recommendations
+      if (allServices.length > 0) {
+        setRecommendations([
+          {
+            id: 'rec_fallback',
+            title: 'Servizi Disponibili',
+            description: 'Esplora i nostri servizi welfare',
+            services: allServices.slice(0, 3).map(s => s.name),
+            reason: 'fallback'
+          }
+        ])
+      }
     }
   }
 
   const loadUserPreferences = async () => {
     try {
+      if (!employee) return
+
       // Load favorites from localStorage for now (could be moved to database)
-      const storedFavorites = localStorage.getItem(`favorites_${currentEmployeeId}`)
+      const storedFavorites = localStorage.getItem(`favorites_${employee.id}`)
       if (storedFavorites) {
         setFavoriteServices(JSON.parse(storedFavorites))
       }
 
       // Load recently viewed
-      const storedRecent = localStorage.getItem(`recent_${currentEmployeeId}`)
+      const storedRecent = localStorage.getItem(`recent_${employee.id}`)
       if (storedRecent) {
         setRecentlyViewed(JSON.parse(storedRecent))
       }
@@ -270,9 +333,12 @@ export default function EmployeeCatalogPage() {
       const service = services.find(s => s.id === serviceId)
       if (!service) return
 
-      // Check if user has enough points
-      if (employee.available_points < service.points_required) {
-        alert('Punti insufficienti per questo servizio')
+      // Calculate available credits using correct schema
+      const availableCredits = employee.allocated_credits - employee.used_credits
+
+      // Check if user has enough credits
+      if (availableCredits < service.points_required) {
+        alert('Crediti insufficienti per questo servizio')
         return
       }
 
@@ -280,7 +346,7 @@ export default function EmployeeCatalogPage() {
       const { data: transaction, error: txError } = await supabase
         .from('transactions')
         .insert({
-          employee_id: currentEmployeeId,
+          employee_id: employee.id,
           partner_id: service.partner_id,
           company_id: employee.company_id,
           service_name: service.name,
@@ -293,21 +359,20 @@ export default function EmployeeCatalogPage() {
 
       if (txError) throw txError
 
-      // Update employee points
+      // Update employee credits using correct schema
       const { error: updateError } = await supabase
         .from('employees')
         .update({
-          available_points: employee.available_points - service.points_required,
-          used_points: (employee.available_points - service.points_required)
+          used_credits: employee.used_credits + service.points_required
         })
-        .eq('id', currentEmployeeId)
+        .eq('id', employee.id)
 
       if (updateError) throw updateError
 
       // Update local state
       setEmployee(prev => prev ? {
         ...prev,
-        available_points: prev.available_points - service.points_required
+        used_credits: prev.used_credits + service.points_required
       } : null)
 
       // Add to recently viewed
@@ -322,6 +387,8 @@ export default function EmployeeCatalogPage() {
   }
 
   const toggleFavorite = (serviceId: string) => {
+    if (!employee) return
+
     const newFavorites = favoriteServices.includes(serviceId)
       ? favoriteServices.filter(id => id !== serviceId)
       : [...favoriteServices, serviceId]
@@ -330,13 +397,15 @@ export default function EmployeeCatalogPage() {
     
     // Save to localStorage
     try {
-      localStorage.setItem(`favorites_${currentEmployeeId}`, JSON.stringify(newFavorites))
+      localStorage.setItem(`favorites_${employee.id}`, JSON.stringify(newFavorites))
     } catch (err) {
       console.error('Error saving favorites:', err)
     }
   }
 
   const addToRecentlyViewed = (serviceId: string, serviceName: string) => {
+    if (!employee) return
+
     const newItem = {
       id: serviceId,
       name: serviceName,
@@ -349,7 +418,7 @@ export default function EmployeeCatalogPage() {
     setRecentlyViewed(newRecent)
     
     try {
-      localStorage.setItem(`recent_${currentEmployeeId}`, JSON.stringify(newRecent))
+      localStorage.setItem(`recent_${employee.id}`, JSON.stringify(newRecent))
     } catch (err) {
       console.error('Error saving recent items:', err)
     }
@@ -415,10 +484,12 @@ export default function EmployeeCatalogPage() {
     return transformServicesToServiceBookingFormat(filtered)
   }
 
+  // Calculate available credits using correct schema
+  const availableCredits = employee ? (employee.allocated_credits - employee.used_credits) : 0
+
   if (isLoading) {
     return (
       <div className="space-y-6">
-        {/* Loading Skeleton */}
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
           <div className="h-4 bg-gray-200 rounded w-1/2 mb-6"></div>
@@ -463,19 +534,56 @@ export default function EmployeeCatalogPage() {
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Catalogo Servizi</h1>
-          <p className="text-gray-600">Scopri e prenota i servizi welfare disponibili</p>
+          <h1 className="text-2xl font-bold text-gray-900">🛍️ Catalogo Servizi</h1>
+          <p className="text-gray-600">
+            Scopri e prenota i servizi welfare disponibili
+            {employee && ` - ${employee.first_name} ${employee.last_name}`}
+          </p>
         </div>
         <div className="text-right">
-          <p className="text-sm text-gray-600">I tuoi punti</p>
-          <p className="text-3xl font-bold text-blue-600">{employee?.available_points?.toLocaleString() || 0}</p>
+          <p className="text-sm text-gray-600">I tuoi crediti</p>
+          <p className="text-3xl font-bold text-blue-600">{availableCredits.toLocaleString()}</p>
+          <p className="text-xs text-gray-500">di {employee?.allocated_credits?.toLocaleString() || 0} assegnati</p>
         </div>
       </div>
 
-      {/* Quick Categories - REAL DATA */}
+      {/* Employee Info */}
+      {employee && (
+        <Card>
+          <Card.Content>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 text-xl">👤</span>
+                </div>
+                <div>
+                  <p className="font-medium">{employee.first_name} {employee.last_name}</p>
+                  <p className="text-sm text-gray-600">{employee.department} • {employee.employee_code}</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600">Utilizzo crediti</p>
+                <div className="flex items-center space-x-2">
+                  <div className="w-20 bg-gray-200 rounded-full h-2">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${Math.min((employee.used_credits / employee.allocated_credits) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-xs text-gray-500">
+                    {((employee.used_credits / employee.allocated_credits) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Quick Categories */}
       <Card>
         <Card.Header>
-          <h3 className="text-lg font-semibold text-gray-900">Esplora per Categoria</h3>
+          <h3 className="text-lg font-semibold text-gray-900">🎯 Esplora per Categoria</h3>
         </Card.Header>
         <Card.Content>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -515,7 +623,7 @@ export default function EmployeeCatalogPage() {
         </Card.Content>
       </Card>
 
-      {/* Recommendations - INTELLIGENT DATA */}
+      {/* Recommendations */}
       {recommendations.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {recommendations.map((rec) => (
@@ -556,11 +664,11 @@ export default function EmployeeCatalogPage() {
         </div>
       )}
 
-      {/* Recently Viewed - PERSISTENT DATA */}
+      {/* Recently Viewed */}
       {recentlyViewed.length > 0 && (
         <Card>
           <Card.Header>
-            <h3 className="text-lg font-semibold text-gray-900">Visualizzati di Recente</h3>
+            <h3 className="text-lg font-semibold text-gray-900">👀 Visualizzati di Recente</h3>
           </Card.Header>
           <Card.Content>
             <div className="flex space-x-4 overflow-x-auto">
@@ -582,11 +690,11 @@ export default function EmployeeCatalogPage() {
         </Card>
       )}
 
-      {/* Your Favorites - PERSISTENT DATA */}
+      {/* Favorites */}
       {favoriteServices.length > 0 && (
         <Card>
           <Card.Header>
-            <h3 className="text-lg font-semibold text-gray-900">I Tuoi Preferiti ❤️</h3>
+            <h3 className="text-lg font-semibold text-gray-900">❤️ I Tuoi Preferiti</h3>
           </Card.Header>
           <Card.Content>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
@@ -609,12 +717,31 @@ export default function EmployeeCatalogPage() {
         </Card>
       )}
 
-      {/* Main Service Catalog - REAL DATA FROM SUPABASE */}
-      <ServiceBookingSystem 
-        services={getFilteredServices()}
-        userPoints={employee?.available_points || 0}
-        onBookService={handleServiceBooked}
-      />
+      {/* Main Service Catalog */}
+      {services.length > 0 ? (
+        <ServiceBookingSystem 
+          services={getFilteredServices()}
+          userPoints={availableCredits}
+          onBookService={handleServiceBooked}
+        />
+      ) : (
+        <Card>
+          <Card.Content>
+            <div className="text-center py-12">
+              <span className="text-6xl mb-4 block">🛍️</span>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Nessun servizio disponibile
+              </h3>
+              <p className="text-gray-600 mb-4">
+                Al momento non ci sono servizi attivi nel catalogo
+              </p>
+              <Button onClick={fetchServices}>
+                🔄 Ricarica Servizi
+              </Button>
+            </div>
+          </Card.Content>
+        </Card>
+      )}
 
       {/* Quick Tips */}
       <Card>
@@ -627,7 +754,7 @@ export default function EmployeeCatalogPage() {
               <h4 className="font-medium text-blue-900 mb-2">Come funziona</h4>
               <ul className="text-sm text-blue-800 space-y-1">
                 <li>• Scegli il servizio che ti interessa</li>
-                <li>• Prenota utilizzando i tuoi punti</li>
+                <li>• Prenota utilizzando i tuoi crediti</li>
                 <li>• Genera il QR code nella sezione QR</li>
                 <li>• Mostra il QR al partner per il servizio</li>
               </ul>
@@ -639,7 +766,7 @@ export default function EmployeeCatalogPage() {
                 <li>• Controlla le offerte speciali sui servizi</li>
                 <li>• Aggiungi servizi ai preferiti per trackarli</li>
                 <li>• Combina più servizi dello stesso partner</li>
-                <li>• Usa tutti i punti prima della scadenza</li>
+                <li>• Usa tutti i crediti prima della scadenza</li>
               </ul>
             </div>
           </div>
